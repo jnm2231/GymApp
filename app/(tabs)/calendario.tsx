@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
 
@@ -64,6 +64,8 @@ export default function CalendarioScreen() {
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
   ];
   while (cells.length % 7 !== 0) cells.push(null);
+  const weeks: (number | null)[][] = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
 
   const isToday = (d: number) =>
     d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
@@ -112,32 +114,36 @@ export default function CalendarioScreen() {
       </View>
 
       <GestureDetector gesture={swipe}>
-        <ScrollView contentContainerStyle={styles.grid}>
-          {cells.map((d, i) => {
-            if (d == null) return <View key={`e${i}`} style={styles.cell} />;
-            const key = dateKey(new Date(year, month, d).getTime());
-            const daypSessions = sessions[key];
-            const hasTraining = !!daypSessions?.length;
-            return (
-              <Pressable
-                key={`d${d}`}
-                style={[styles.cell, isToday(d) && styles.cellToday]}
-                onPress={() => openDay(d)}>
-                <Text style={[styles.dayNum, isToday(d) && styles.dayNumToday]}>{d}</Text>
-                {hasTraining ? (
-                  <View style={styles.marker}>
-                    <Text style={styles.markerText} numberOfLines={1}>
-                      {daypSessions[0].day_name}
-                    </Text>
-                    {daypSessions.length > 1 ? (
-                      <Text style={styles.markerMore}>+{daypSessions.length - 1}</Text>
+        <View style={styles.grid}>
+          {weeks.map((week, wi) => (
+            <View key={`w${wi}`} style={styles.weekCells}>
+              {week.map((d, di) => {
+                if (d == null) return <View key={`e${wi}-${di}`} style={[styles.cell, styles.cellEmpty]} />;
+                const key = dateKey(new Date(year, month, d).getTime());
+                const daypSessions = sessions[key];
+                const hasTraining = !!daypSessions?.length;
+                return (
+                  <Pressable
+                    key={`d${d}`}
+                    style={[styles.cell, isToday(d) && styles.cellToday]}
+                    onPress={() => openDay(d)}>
+                    <Text style={[styles.dayNum, isToday(d) && styles.dayNumToday]}>{d}</Text>
+                    {hasTraining ? (
+                      <View style={styles.marker}>
+                        <Text style={styles.markerText} numberOfLines={2}>
+                          {daypSessions[0].day_name}
+                        </Text>
+                        {daypSessions.length > 1 ? (
+                          <Text style={styles.markerMore}>+{daypSessions.length - 1} más</Text>
+                        ) : null}
+                      </View>
                     ) : null}
-                  </View>
-                ) : null}
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
+        </View>
       </GestureDetector>
 
       {/* Selector rápido de mes/año */}
@@ -187,7 +193,7 @@ const styles = StyleSheet.create({
   navBtn: { padding: 4 },
   monthLabel: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   monthText: { color: GymTheme.text, fontSize: 22, fontWeight: '800' },
-  weekRow: { flexDirection: 'row', paddingHorizontal: Spacing.sm },
+  weekRow: { flexDirection: 'row', paddingHorizontal: Spacing.md },
   weekday: {
     flex: 1,
     textAlign: 'center',
@@ -196,25 +202,30 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     paddingBottom: Spacing.sm,
   },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: Spacing.sm },
+  grid: { flex: 1, paddingHorizontal: Spacing.md, paddingBottom: Spacing.md },
+  weekCells: { flex: 1, flexDirection: 'row' },
   cell: {
-    width: `${100 / 7}%`,
-    aspectRatio: 0.82,
-    padding: 3,
-    borderRadius: Radius.sm,
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#3A3A42',
+    paddingTop: 6,
+    paddingHorizontal: 3,
+    alignItems: 'center',
   },
-  cellToday: { backgroundColor: GymTheme.surfaceAlt, borderWidth: 1, borderColor: GymTheme.primary },
-  dayNum: { color: GymTheme.text, fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  cellEmpty: { backgroundColor: 'rgba(255,255,255,0.02)' },
+  cellToday: { borderColor: GymTheme.primary, borderWidth: 2, backgroundColor: GymTheme.surfaceAlt },
+  dayNum: { color: GymTheme.text, fontSize: 15, fontWeight: '600' },
   dayNumToday: { color: GymTheme.primary, fontWeight: '800' },
   marker: {
-    marginTop: 2,
+    marginTop: 4,
+    alignSelf: 'stretch',
     backgroundColor: GymTheme.activeDim,
     borderRadius: 4,
-    paddingHorizontal: 2,
-    paddingVertical: 1,
+    paddingHorizontal: 3,
+    paddingVertical: 2,
   },
-  markerText: { color: GymTheme.active, fontSize: 9, fontWeight: '700', textAlign: 'center' },
-  markerMore: { color: GymTheme.textFaint, fontSize: 8, textAlign: 'center' },
+  markerText: { color: GymTheme.active, fontSize: 10, fontWeight: '700', textAlign: 'center' },
+  markerMore: { color: GymTheme.textFaint, fontSize: 9, textAlign: 'center' },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',

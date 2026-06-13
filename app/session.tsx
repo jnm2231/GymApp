@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -28,9 +28,11 @@ export default function SessionScreen() {
 
   const [session, setSession] = useState<Session | null>(null);
   const [blocks, setBlocks] = useState<SessionExerciseWithSets[]>([]);
+  const [focusedId, setFocusedId] = useState<number | null>(null); // ejercicio en verde (en curso)
   const [loading, setLoading] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [catalog, setCatalog] = useState<Exercise[]>([]);
+  const initRef = useRef(false);
 
   const load = useCallback(async () => {
     const s = await getActiveSession(db);
@@ -40,7 +42,23 @@ export default function SessionScreen() {
       return;
     }
     setSession(s);
-    setBlocks(await getSessionExercisesWithSets(db, s.id));
+    const bs = await getSessionExercisesWithSets(db, s.id);
+    setBlocks(bs);
+
+    // Gestión del foco (qué ejercicio está en verde):
+    // - se conserva el elegido por el usuario mientras siga sin terminar;
+    // - en la primera carga se enfoca automáticamente el primero pendiente;
+    // - si el enfocado se termina (o se pospone), queda sin foco para elegir otro.
+    setFocusedId((prev) => {
+      const stillValid = prev != null && bs.some((b) => b.id === prev && b.status !== 'done');
+      if (stillValid) return prev;
+      if (!initRef.current) {
+        const first = bs.find((b) => b.status !== 'done');
+        return first ? first.id : null;
+      }
+      return null;
+    });
+    initRef.current = true;
     setLoading(false);
   }, [db]);
 
@@ -66,8 +84,8 @@ export default function SessionScreen() {
     );
   }
 
-  const currentId = blocks.find((b) => b.status !== 'done')?.id ?? null;
   const allDone = blocks.length > 0 && blocks.every((b) => b.status === 'done');
+  const pendingCount = blocks.filter((b) => b.status !== 'done').length;
 
   const handlePause = async () => {
     await pauseSession(db, session.id);
@@ -132,14 +150,23 @@ export default function SessionScreen() {
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 160 }]}>
+        {focusedId == null && pendingCount > 0 ? (
+          <View style={styles.pickHint}>
+            <MaterialCommunityIcons name="gesture-tap" size={18} color={GymTheme.primary} />
+            <Text style={styles.pickHintText}>Elige el ejercicio que vas a realizar</Text>
+          </View>
+        ) : null}
+
         {blocks.map((b) => (
           <ExerciseBlock
             key={b.id}
             block={b}
-            isCurrent={b.id === currentId}
+            isCurrent={b.id === focusedId}
             sessionId={session.id}
             onChanged={load}
             onOpenHistory={(exId) => router.push({ pathname: '/exercise/[id]', params: { id: String(exId) } })}
+            onFocus={() => setFocusedId(b.id)}
+            onPostpone={() => setFocusedId(null)}
           />
         ))}
 
@@ -210,6 +237,16 @@ const styles = StyleSheet.create({
   dayName: { color: GymTheme.text, fontSize: 22, fontWeight: '800' },
   startedAt: { color: GymTheme.textMuted, fontSize: 13, marginTop: 2 },
   content: { padding: Spacing.lg, gap: Spacing.md },
+  pickHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    backgroundColor: GymTheme.surfaceAlt,
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.md,
+  },
+  pickHintText: { color: GymTheme.primary, fontWeight: '700', fontSize: 14 },
   addExtra: {
     flexDirection: 'row',
     alignItems: 'center',

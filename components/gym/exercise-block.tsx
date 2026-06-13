@@ -20,9 +20,19 @@ interface Props {
   sessionId: number;
   onChanged: () => Promise<void>;
   onOpenHistory: (exerciseId: number) => void;
+  onFocus: () => void; // pasar a realizar este ejercicio (ponerlo en verde)
+  onPostpone: () => void; // posponer el ejercicio activo y elegir otro
 }
 
-export function ExerciseBlock({ block, isCurrent, sessionId, onChanged, onOpenHistory }: Props) {
+export function ExerciseBlock({
+  block,
+  isCurrent,
+  sessionId,
+  onChanged,
+  onOpenHistory,
+  onFocus,
+  onPostpone,
+}: Props) {
   const db = useSQLiteContext();
   const done = block.status === 'done';
   const weightConfirmed = block.weight != null;
@@ -76,15 +86,31 @@ export function ExerciseBlock({ block, isCurrent, sessionId, onChanged, onOpenHi
     await onChanged();
   };
 
-  // --- Bloque en espera (ni actual ni terminado): bloqueado visualmente ---
+  // --- Bloque no enfocado y no terminado: seleccionable (se puede empezar/seguir) ---
   if (!isCurrent && !done) {
+    const startedSummary = block.sets.length > 0 ? repsSummary(block.sets.map((s) => s.reps)) : null;
     return (
-      <View style={[styles.card, styles.locked]}>
+      <View style={[styles.card, styles.selectable]}>
         <View style={styles.headerRow}>
-          <MaterialCommunityIcons name="lock-outline" size={16} color={GymTheme.textFaint} />
-          <Text style={styles.lockedName}>{block.exercise_name}</Text>
+          <View style={{ flex: 1 }}>
+            <View style={styles.nameRow}>
+              {block.is_additional ? (
+                <MaterialCommunityIcons name="plus-circle-outline" size={16} color={GymTheme.primary} />
+              ) : null}
+              <Text style={styles.selName}>{block.exercise_name}</Text>
+              {block.es_corporal ? <Text style={styles.tag}>corporal</Text> : null}
+            </View>
+            <Text style={styles.selMeta}>
+              {block.weight != null ? `${block.weight} kg · ` : ''}
+              {startedSummary ? `series: ${startedSummary}` : 'Sin empezar'}
+            </Text>
+            {ref ? <Text style={styles.refText}>Último: {formatRefSummary(ref)}</Text> : null}
+          </View>
+          <Pressable style={styles.playBtn} onPress={onFocus} hitSlop={6}>
+            <MaterialCommunityIcons name="play" size={16} color="#06210F" />
+            <Text style={styles.playText}>{startedSummary ? 'Seguir' : 'Empezar'}</Text>
+          </Pressable>
         </View>
-        {ref ? <Text style={styles.refText}>Último: {formatRefSummary(ref)}</Text> : null}
       </View>
     );
   }
@@ -226,13 +252,19 @@ export function ExerciseBlock({ block, isCurrent, sessionId, onChanged, onOpenHi
             </Text>
           </Pressable>
         ) : isCurrent ? (
-          <Pressable
-            style={[styles.doneBtn, block.sets.length === 0 && styles.doneBtnDisabled]}
-            onPress={handleFinish}
-            disabled={block.sets.length === 0}>
-            <MaterialCommunityIcons name="flag-checkered" size={16} color="#0C0C0E" />
-            <Text style={styles.doneText}>Terminado</Text>
-          </Pressable>
+          <>
+            <Pressable style={styles.postponeBtn} onPress={onPostpone} hitSlop={6}>
+              <MaterialCommunityIcons name="pause" size={16} color={GymTheme.text} />
+              <Text style={styles.postponeText}>Posponer</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.doneBtn, block.sets.length === 0 && styles.doneBtnDisabled]}
+              onPress={handleFinish}
+              disabled={block.sets.length === 0}>
+              <MaterialCommunityIcons name="flag-checkered" size={16} color="#0C0C0E" />
+              <Text style={styles.doneText}>Terminado</Text>
+            </Pressable>
+          </>
         ) : null}
       </View>
     </View>
@@ -253,11 +285,32 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     gap: Spacing.md,
   },
-  locked: { opacity: 0.55 },
+  selectable: { opacity: 0.92 },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
   name: { color: GymTheme.text, fontSize: 18, fontWeight: '800' },
-  lockedName: { color: GymTheme.textMuted, fontSize: 16, fontWeight: '600' },
+  selName: { color: GymTheme.text, fontSize: 16, fontWeight: '700' },
+  selMeta: { color: GymTheme.textMuted, fontSize: 13, marginTop: 4 },
+  playBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: GymTheme.active,
+    borderRadius: Radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  playText: { color: '#06210F', fontWeight: '800', fontSize: 13 },
+  postponeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: GymTheme.surfaceElevated,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+  },
+  postponeText: { color: GymTheme.text, fontWeight: '700', fontSize: 13 },
   tag: {
     color: GymTheme.active,
     fontSize: 10,
