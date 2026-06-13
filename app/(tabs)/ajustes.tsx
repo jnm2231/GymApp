@@ -1,9 +1,6 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
-import * as DocumentPicker from 'expo-document-picker';
-import { File, Paths } from 'expo-file-system';
-import { useFocusEffect } from 'expo-router';
-import * as Sharing from 'expo-sharing';
+import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
 import {
@@ -13,43 +10,44 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Colors } from '@/constants/theme';
-import { resetDatabase, type Account, type Category, type CategoryType } from '@/db/database';
+import { Button, ScreenTitle } from '@/components/gym/ui';
+import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
+import { useSession } from '@/context/session-context';
 import {
-  addCategory,
-  deleteCategory,
-  getAccounts,
-  getBaseAccountId,
-  getCategories,
-  setBaseAccountId,
-} from '@/db/queries';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { exportAll, importAll, parseBackup, toCSV, toJSON } from '@/lib/backup';
-import { formatCurrency, nowLocalISO } from '@/lib/format';
+  createExercise,
+  deleteExercise,
+  listExercises,
+} from '@/db/exercises';
+import { getDevNote, saveDevNote } from '@/db/notes';
+import { getUserWeight, setUserWeight } from '@/db/settings';
+import type { Exercise } from '@/db/types';
+import { exportBackup, importBackup } from '@/lib/backup-io';
 
 export default function AjustesScreen() {
   const db = useSQLiteContext();
-  const palette = Colors[useColorScheme() ?? 'light'];
   const insets = useSafeAreaInsets();
+  const { refresh } = useSession();
 
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [baseId, setBaseId] = useState<number | null>(null);
-  const [expenseCategories, setExpenseCategories] = useState<Category[]>([]);
-  const [incomeCategories, setIncomeCategories] = useState<Category[]>([]);
-  const [newExpenseCategory, setNewExpenseCategory] = useState('');
-  const [newIncomeCategory, setNewIncomeCategory] = useState('');
+  const [weight, setWeight] = useState('');
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [newName, setNewName] = useState('');
+  const [newCorporal, setNewCorporal] = useState(false);
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    setAccounts(await getAccounts(db));
-    setBaseId(await getBaseAccountId(db));
-    setExpenseCategories(await getCategories(db, 'gasto'));
-    setIncomeCategories(await getCategories(db, 'ingreso'));
+    const w = await getUserWeight(db);
+    setWeight(w ? String(w) : '');
+    setExercises(await listExercises(db));
+    const devNote = await getDevNote(db);
+    setNote(devNote?.content ?? '');
   }, [db]);
 
   useFocusEffect(
@@ -58,34 +56,35 @@ export default function AjustesScreen() {
     }, [load])
   );
 
-  const handleSetBase = async (accountId: number) => {
-    await setBaseAccountId(db, accountId);
-    setBaseId(accountId);
+  const handleSaveWeight = async () => {
+    const n = parseFloat(weight.replace(',', '.'));
+    await setUserWeight(db, Number.isFinite(n) ? n : 0);
   };
 
-  const handleAddCategory = async (type: CategoryType) => {
-    const name = (type === 'gasto' ? newExpenseCategory : newIncomeCategory).trim();
+  const handleAddExercise = async () => {
+    const name = newName.trim();
     if (!name) return;
-    await addCategory(db, name, type);
-    if (type === 'gasto') {
-      setNewExpenseCategory('');
-    } else {
-      setNewIncomeCategory('');
+    try {
+      await createExercise(db, name, newCorporal);
+      setNewName('');
+      setNewCorporal(false);
+      await load();
+    } catch {
+      Alert.alert('Ya existe', `El ejercicio "${name}" ya está en el catálogo.`);
     }
-    await load();
   };
 
-  const handleDeleteCategory = (category: Category) => {
+  const handleDeleteExercise = (ex: Exercise) => {
     Alert.alert(
-      'Eliminar categoría',
-      `¿Eliminar "${category.name}"? Los movimientos antiguos pasarán a "Sin categoría".`,
+      'Eliminar ejercicio',
+      `¿Eliminar "${ex.name}" del catálogo? Se quitará de las plantillas de día. El histórico se conserva.`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Eliminar',
           style: 'destructive',
           onPress: async () => {
-            await deleteCategory(db, category.id);
+            await deleteExercise(db, ex.id);
             await load();
           },
         },
@@ -93,68 +92,42 @@ export default function AjustesScreen() {
     );
   };
 
-  const handleExport = async (format: 'csv' | 'json') => {
+  const handleExport = async () => {
     try {
-      const data = await exportAll(db);
-      const content = format === 'csv' ? toCSV(data) : toJSON(data);
-      const fileName = `mis-finanzas-backup-${nowLocalISO().slice(0, 10)}.${format}`;
-      const file = new File(Paths.cache, fileName);
-      if (file.exists) file.delete();
-      file.create();
-      file.write(content);
-      await Sharing.shareAsync(file.uri, {
-        mimeType: format === 'csv' ? 'text/csv' : 'application/json',
-        dialogTitle: 'Guardar copia de seguridad',
-      });
-    } catch (error) {
-      Alert.alert('Error al exportar', error instanceof Error ? error.message : 'Error desconocido.');
+      setBusy(true);
+      await exportBackup(db);
+    } catch (e) {
+      Alert.alert('Error al exportar', e instanceof Error ? e.message : 'Error desconocido.');
+    } finally {
+      setBusy(false);
     }
   };
 
-  const handleImport = async () => {
-    const result = await DocumentPicker.getDocumentAsync({
-      type: ['text/csv', 'text/comma-separated-values', 'application/json', 'text/plain'],
-      copyToCacheDirectory: true,
-    });
-    if (result.canceled || result.assets.length === 0) return;
-
-    let text: string;
-    try {
-      text = await new File(result.assets[0].uri).text();
-    } catch {
-      Alert.alert('Error al leer', 'No se ha podido leer el archivo seleccionado.');
-      return;
-    }
-
-    let data;
-    try {
-      data = parseBackup(text);
-    } catch (error) {
-      Alert.alert(
-        'Archivo no válido',
-        error instanceof Error ? error.message : 'El archivo no es un backup de Mis Finanzas.'
-      );
-      return;
-    }
-
+  const handleImport = () => {
     Alert.alert(
-      'Restaurar copia de seguridad',
-      `El archivo contiene ${data.accounts.length} cuenta(s), ${data.transactions.length} movimiento(s) y ${data.investments.length} inversión(es).\n\nSe REEMPLAZARÁN todos los datos actuales. ¿Continuar?`,
+      'Importar copia de seguridad',
+      'Se SOBRESCRIBIRÁN todos los datos actuales (ejercicios, días, sesiones e histórico) con los del archivo. Las Notas de Desarrollo no se ven afectadas. ¿Continuar?',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Restaurar',
+          text: 'Importar',
           style: 'destructive',
           onPress: async () => {
             try {
-              await importAll(db, data);
-              await load();
-              Alert.alert('Restauración completada', 'Los datos se han importado correctamente.');
-            } catch (error) {
+              setBusy(true);
+              const ok = await importBackup(db);
+              if (ok) {
+                await load();
+                await refresh();
+                Alert.alert('Restauración completada', 'Los datos se han importado correctamente.');
+              }
+            } catch (e) {
               Alert.alert(
                 'Error al importar',
-                error instanceof Error ? error.message : 'No se han podido importar los datos.'
+                e instanceof Error ? e.message : 'No se han podido importar los datos.'
               );
+            } finally {
+              setBusy(false);
             }
           },
         },
@@ -162,302 +135,207 @@ export default function AjustesScreen() {
     );
   };
 
-  const handleResetData = () => {
-    Alert.alert(
-      'Borrar todos los datos',
-      'Se eliminarán todas las cuentas, movimientos e inversiones. Esta acción no se puede deshacer.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Borrar todo',
-          style: 'destructive',
-          onPress: async () => {
-            await resetDatabase(db);
-            await load();
-          },
-        },
-      ]
-    );
+  const handleSaveNote = async () => {
+    await saveDevNote(db, note);
   };
-
-  const renderCategoryManager = (
-    title: string,
-    categories: Category[],
-    type: CategoryType,
-    inputValue: string,
-    onChangeInput: (text: string) => void
-  ) => (
-    <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
-      <Text style={[styles.cardTitle, { color: palette.text }]}>{title}</Text>
-      <View style={styles.chips}>
-        {categories.map((category) => (
-          <View
-            key={category.id}
-            style={[styles.chip, { borderColor: palette.border, backgroundColor: palette.background }]}>
-            <Text style={[styles.chipText, { color: palette.text }]}>{category.name}</Text>
-            <Pressable hitSlop={6} onPress={() => handleDeleteCategory(category)}>
-              <MaterialCommunityIcons name="close" size={16} color={palette.muted} />
-            </Pressable>
-          </View>
-        ))}
-        {categories.length === 0 && (
-          <Text style={{ color: palette.muted }}>No hay ninguna todavía.</Text>
-        )}
-      </View>
-      <View style={styles.addRow}>
-        <TextInput
-          style={[
-            styles.input,
-            { borderColor: palette.border, color: palette.text, backgroundColor: palette.background, flex: 1 },
-          ]}
-          placeholder="Nueva categoría..."
-          placeholderTextColor={palette.muted}
-          value={inputValue}
-          onChangeText={onChangeInput}
-          onSubmitEditing={() => handleAddCategory(type)}
-          returnKeyType="done"
-        />
-        <Pressable
-          style={[styles.addButton, { backgroundColor: palette.tint }]}
-          onPress={() => handleAddCategory(type)}>
-          <MaterialCommunityIcons name="plus" size={22} color={palette.background} />
-        </Pressable>
-      </View>
-    </View>
-  );
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: palette.background }}
+      style={{ flex: 1, backgroundColor: GymTheme.background }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.sm }]}
         keyboardShouldPersistTaps="handled">
-        <Text style={[styles.title, { color: palette.text }]}>Ajustes</Text>
+        <ScreenTitle>Ajustes</ScreenTitle>
 
-        {/* Cuenta Base */}
-        <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <Text style={[styles.cardTitle, { color: palette.text }]}>Cuenta Base</Text>
-          <Text style={[styles.cardSubtitle, { color: palette.muted }]}>
-            Los gastos e ingresos rápidos de la pestaña Agregar se aplican a esta cuenta.
+        {/* Perfil */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Perfil</Text>
+          <Text style={styles.cardSub}>
+            Tu peso corporal se usa en los cálculos de fuerza (1RM) de los ejercicios corporales.
           </Text>
-          {accounts.map((account) => {
-            const selected = account.id === baseId;
-            return (
-              <Pressable
-                key={account.id}
-                style={[styles.radioRow, { borderBottomColor: palette.border }]}
-                onPress={() => handleSetBase(account.id)}>
-                <MaterialCommunityIcons
-                  name={selected ? 'radiobox-marked' : 'radiobox-blank'}
-                  size={22}
-                  color={selected ? palette.tint : palette.muted}
-                />
-                <Text style={[styles.radioLabel, { color: palette.text }]}>{account.name}</Text>
-                <Text style={[styles.radioBalance, { color: palette.muted }]}>
-                  {formatCurrency(account.balance)}
-                </Text>
+          <View style={styles.weightRow}>
+            <TextInput
+              style={styles.input}
+              placeholder="0"
+              placeholderTextColor={GymTheme.textFaint}
+              keyboardType="decimal-pad"
+              value={weight}
+              onChangeText={setWeight}
+              onBlur={handleSaveWeight}
+              onSubmitEditing={handleSaveWeight}
+              returnKeyType="done"
+            />
+            <Text style={styles.unit}>kg</Text>
+            <Button title="Guardar" variant="surface" onPress={handleSaveWeight} style={{ flex: 1 }} />
+          </View>
+        </View>
+
+        {/* Catálogo de ejercicios */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Catálogo de ejercicios</Text>
+          <Text style={styles.cardSub}>
+            Ejercicios base disponibles para componer tus días. Marca &quot;Corporal&quot; si el peso
+            propio cuenta para el 1RM (ej: dominadas).
+          </Text>
+
+          {exercises.map((ex) => (
+            <View key={ex.id} style={styles.exerciseRow}>
+              <MaterialCommunityIcons
+                name={ex.es_corporal ? 'human-handsup' : 'weight'}
+                size={20}
+                color={ex.es_corporal ? GymTheme.active : GymTheme.textMuted}
+              />
+              <Text style={styles.exerciseName}>{ex.name}</Text>
+              {ex.es_corporal ? <Text style={styles.tag}>corporal</Text> : null}
+              <Pressable hitSlop={8} onPress={() => handleDeleteExercise(ex)}>
+                <MaterialCommunityIcons name="trash-can-outline" size={20} color={GymTheme.danger} />
               </Pressable>
-            );
-          })}
+            </View>
+          ))}
+          {exercises.length === 0 ? (
+            <Text style={styles.muted}>Aún no hay ejercicios. Crea el primero abajo.</Text>
+          ) : null}
+
+          <View style={styles.divider} />
+          <TextInput
+            style={[styles.input, { width: '100%' }]}
+            placeholder="Nuevo ejercicio (ej: Press banca)"
+            placeholderTextColor={GymTheme.textFaint}
+            value={newName}
+            onChangeText={setNewName}
+            onSubmitEditing={handleAddExercise}
+            returnKeyType="done"
+          />
+          <View style={styles.corporalRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+              <Switch
+                value={newCorporal}
+                onValueChange={setNewCorporal}
+                trackColor={{ true: GymTheme.active, false: GymTheme.disabled }}
+                thumbColor={GymTheme.white}
+              />
+              <Text style={styles.cardSub}>Es corporal (peso + lastre)</Text>
+            </View>
+            <Button title="Añadir" onPress={handleAddExercise} />
+          </View>
         </View>
 
-        {renderCategoryManager(
-          'Categorías de gasto',
-          expenseCategories,
-          'gasto',
-          newExpenseCategory,
-          setNewExpenseCategory
-        )}
-
-        {renderCategoryManager(
-          'Tipos de ingreso',
-          incomeCategories,
-          'ingreso',
-          newIncomeCategory,
-          setNewIncomeCategory
-        )}
-
-        {/* Copia de seguridad */}
-        <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <Text style={[styles.cardTitle, { color: palette.text }]}>Copia de seguridad</Text>
-          <Text style={[styles.cardSubtitle, { color: palette.muted }]}>
-            Exporta todos tus datos a un archivo para guardarlos o pasarlos a otro móvil, e
-            importa un backup para restaurarlos.
+        {/* Plantillas de día */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Días de entrenamiento</Text>
+          <Text style={styles.cardSub}>
+            Crea plantillas de día (Pecho, Espalda...) seleccionando ejercicios del catálogo.
           </Text>
-          <View style={styles.backupRow}>
-            <Pressable
-              style={[styles.backupButton, { borderColor: palette.tint }]}
-              onPress={() => handleExport('csv')}>
-              <MaterialCommunityIcons name="file-export-outline" size={18} color={palette.tint} />
-              <Text style={[styles.backupText, { color: palette.tint }]}>Exportar CSV</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.backupButton, { borderColor: palette.tint }]}
-              onPress={() => handleExport('json')}>
-              <MaterialCommunityIcons name="code-json" size={18} color={palette.tint} />
-              <Text style={[styles.backupText, { color: palette.tint }]}>Exportar JSON</Text>
-            </Pressable>
-          </View>
-          <Pressable
-            style={[styles.backupButton, { borderColor: palette.tint }]}
-            onPress={handleImport}>
-            <MaterialCommunityIcons name="file-import-outline" size={18} color={palette.tint} />
-            <Text style={[styles.backupText, { color: palette.tint }]}>
-              Importar backup (CSV o JSON)
-            </Text>
-          </Pressable>
+          <Button
+            title="Nuevo día"
+            variant="surface"
+            left={<MaterialCommunityIcons name="plus" size={18} color={GymTheme.text} />}
+            onPress={() => router.push('/day-form')}
+          />
         </View>
 
-        {/* Zona peligrosa */}
-        <View style={[styles.card, { borderColor: palette.danger, backgroundColor: palette.card }]}>
-          <Text style={[styles.cardTitle, { color: palette.danger }]}>Zona peligrosa</Text>
-          <Pressable
-            style={[styles.dangerButton, { borderColor: palette.danger }]}
-            onPress={handleResetData}>
-            <MaterialCommunityIcons name="delete-forever" size={20} color={palette.danger} />
-            <Text style={[styles.dangerText, { color: palette.danger }]}>
-              Borrar todos los datos
-            </Text>
-          </Pressable>
+        {/* Copias de seguridad */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Copias de seguridad</Text>
+          <Text style={styles.cardSub}>
+            Exporta toda la base de datos a un archivo .json para guardarla o pasarla a otro móvil, e
+            impórtala para restaurarla. Las Notas de Desarrollo quedan excluidas.
+          </Text>
+          <Button
+            title="Exportar copia (.json)"
+            variant="surface"
+            loading={busy}
+            left={<MaterialCommunityIcons name="export" size={18} color={GymTheme.text} />}
+            onPress={handleExport}
+          />
+          <Button
+            title="Importar copia"
+            variant="surface"
+            loading={busy}
+            left={<MaterialCommunityIcons name="import" size={18} color={GymTheme.text} />}
+            onPress={handleImport}
+          />
         </View>
 
-        {/* Acerca de */}
-        <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
-          <Text style={[styles.cardTitle, { color: palette.text }]}>Acerca de</Text>
-          <View style={styles.aboutRow}>
-            <Text style={[styles.aboutLabel, { color: palette.text }]}>Versión</Text>
-            <Text style={[styles.aboutValue, { color: palette.muted }]}>
-              {Constants.expoConfig?.version ?? '0.5'}
-            </Text>
-          </View>
+        {/* Notas de desarrollo */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Notas de desarrollo (Backlog)</Text>
+          <Text style={styles.cardSub}>Ideas y pendientes. No se incluyen en las copias de seguridad.</Text>
+          <TextInput
+            style={styles.textarea}
+            placeholder="Escribe aquí tus notas..."
+            placeholderTextColor={GymTheme.textFaint}
+            value={note}
+            onChangeText={setNote}
+            onBlur={handleSaveNote}
+            multiline
+            textAlignVertical="top"
+          />
+          <Button title="Guardar nota" variant="surface" onPress={handleSaveNote} />
         </View>
 
-        <Text style={[styles.version, { color: palette.muted }]}>
-          Mis Finanzas · datos guardados solo en este dispositivo
-        </Text>
+        <View style={styles.aboutRow}>
+          <Ionicons name="barbell" size={16} color={GymTheme.textFaint} />
+          <Text style={styles.version}>
+            GymApp v{Constants.expoConfig?.version ?? '1.0.0'} · datos sólo en este dispositivo
+          </Text>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    padding: 16,
-    paddingBottom: 32,
-    gap: 16,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-  },
+  content: { padding: Spacing.lg, paddingBottom: Spacing.xxl, gap: Spacing.lg },
   card: {
+    backgroundColor: GymTheme.surface,
+    borderRadius: Radius.lg,
     borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-    gap: 10,
+    borderColor: GymTheme.border,
+    padding: Spacing.lg,
+    gap: Spacing.md,
   },
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  cardSubtitle: {
-    fontSize: 13,
-  },
-  radioRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  radioLabel: {
-    fontSize: 15,
-    fontWeight: '500',
-    flex: 1,
-  },
-  radioBalance: {
-    fontSize: 14,
-  },
-  chips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  chipText: {
-    fontSize: 14,
-  },
-  addRow: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'center',
-  },
+  cardTitle: { color: GymTheme.text, fontSize: 17, fontWeight: '700' },
+  cardSub: { color: GymTheme.textMuted, fontSize: 13, lineHeight: 18 },
+  muted: { color: GymTheme.textFaint, fontSize: 14 },
+  weightRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   input: {
+    backgroundColor: GymTheme.inputBg,
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-  },
-  addButton: {
-    borderRadius: 10,
-    padding: 10,
-  },
-  backupRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  backupButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    borderWidth: 1,
-    borderRadius: 10,
+    borderColor: GymTheme.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
     paddingVertical: 12,
+    color: GymTheme.text,
+    fontSize: 16,
+    minWidth: 90,
+  },
+  unit: { color: GymTheme.textMuted, fontSize: 16, fontWeight: '600' },
+  exerciseRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 6 },
+  exerciseName: { color: GymTheme.text, fontSize: 15, flex: 1, fontWeight: '500' },
+  tag: {
+    color: GymTheme.active,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    backgroundColor: GymTheme.activeDim,
     paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radius.sm,
   },
-  backupText: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  dangerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+  divider: { height: 1, backgroundColor: GymTheme.border, marginVertical: Spacing.xs },
+  corporalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  textarea: {
+    backgroundColor: GymTheme.inputBg,
     borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 12,
-  },
-  dangerText: {
+    borderColor: GymTheme.border,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    color: GymTheme.text,
     fontSize: 15,
-    fontWeight: '700',
+    minHeight: 120,
   },
-  aboutRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  aboutLabel: {
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  aboutValue: {
-    fontSize: 15,
-  },
-  version: {
-    fontSize: 12,
-    textAlign: 'center',
-  },
+  aboutRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  version: { color: GymTheme.textFaint, fontSize: 12, textAlign: 'center' },
 });
