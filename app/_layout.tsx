@@ -48,10 +48,6 @@ export default function RootLayout() {
                     name="day-form"
                     options={{ presentation: 'modal', title: 'Día de entrenamiento' }}
                   />
-                  <Stack.Screen
-                    name="session"
-                    options={{ headerShown: false, gestureEnabled: false }}
-                  />
                   <Stack.Screen name="exercise/[id]" options={{ title: 'Histórico' }} />
                   <Stack.Screen name="day-detail/[date]" options={{ title: 'Detalle del día' }} />
                 </Stack>

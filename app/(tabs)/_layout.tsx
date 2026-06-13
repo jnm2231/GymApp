@@ -1,10 +1,9 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { Tabs, router } from 'expo-router';
+import { Tabs } from 'expo-router';
 import React from 'react';
 import { View } from 'react-native';
 
 import { GymTheme } from '@/constants/gym-theme';
-import { useSession } from '@/context/session-context';
 
 /** Icono de pesa con un "+" superpuesto para la pestaña de entrenamiento. */
 function DumbbellPlus({ color, size }: { color: string; size: number }) {
@@ -26,8 +25,6 @@ function DumbbellPlus({ color, size }: { color: string; size: number }) {
 }
 
 export default function TabLayout() {
-  const { activeSessionId } = useSession();
-
   return (
     <Tabs
       screenOptions={{
@@ -44,15 +41,6 @@ export default function TabLayout() {
         options={{
           title: 'Entreno',
           tabBarIcon: ({ color, size }) => <DumbbellPlus color={color} size={size} />,
-        }}
-        listeners={{
-          tabPress: (e) => {
-            // Si hay una sesión activa, el icono de pesa vuelve a ella.
-            if (activeSessionId) {
-              e.preventDefault();
-              router.push('/session');
-            }
-          },
         }}
       />
       <Tabs.Screen

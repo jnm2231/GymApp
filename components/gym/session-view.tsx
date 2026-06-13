@@ -1,12 +1,11 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ExerciseBlock } from '@/components/gym/exercise-block';
-import { Loading, Screen } from '@/components/gym/ui';
+import { Button, Loading, Screen } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { useSession } from '@/context/session-context';
 import { listExercises } from '@/db/exercises';
@@ -17,18 +16,23 @@ import {
   getActiveSession,
   getSessionExercisesWithSets,
   pauseSession,
+  resumeSession,
 } from '@/db/sessions';
 import type { Exercise, Session, SessionExerciseWithSets } from '@/db/types';
 import { formatHM } from '@/lib/format';
 
-export default function SessionScreen() {
+/**
+ * Vista de la sesión activa. Se renderiza DENTRO de la pestaña "Entreno"
+ * (no como pantalla apilada) para que la barra de navegación inferior siga
+ * visible y los controles globales queden justo encima de ella.
+ */
+export function SessionView() {
   const db = useSQLiteContext();
-  const insets = useSafeAreaInsets();
   const { refresh } = useSession();
 
   const [session, setSession] = useState<Session | null>(null);
   const [blocks, setBlocks] = useState<SessionExerciseWithSets[]>([]);
-  const [focusedId, setFocusedId] = useState<number | null>(null); // ejercicio en verde (en curso)
+  const [focusedId, setFocusedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [catalog, setCatalog] = useState<Exercise[]>([]);
@@ -36,19 +40,13 @@ export default function SessionScreen() {
 
   const load = useCallback(async () => {
     const s = await getActiveSession(db);
+    setSession(s);
     if (!s) {
-      setSession(null);
       setLoading(false);
       return;
     }
-    setSession(s);
     const bs = await getSessionExercisesWithSets(db, s.id);
     setBlocks(bs);
-
-    // Gestión del foco (qué ejercicio está en verde):
-    // - se conserva el elegido por el usuario mientras siga sin terminar;
-    // - en la primera carga se enfoca automáticamente el primero pendiente;
-    // - si el enfocado se termina (o se pospone), queda sin foco para elegir otro.
     setFocusedId((prev) => {
       const stillValid = prev != null && bs.some((b) => b.id === prev && b.status !== 'done');
       if (stillValid) return prev;
@@ -68,29 +66,22 @@ export default function SessionScreen() {
     }, [load])
   );
 
-  if (loading) return <Loading />;
+  // Si la carga termina sin sesión (p. ej. tras finalizar), sincroniza el
+  // contexto para que la pestaña vuelva al Inicio.
+  useEffect(() => {
+    if (!loading && !session) refresh();
+  }, [loading, session, refresh]);
 
-  // No hay sesión activa: volver al inicio.
-  if (!session) {
-    return (
-      <Screen>
-        <View style={styles.noSession}>
-          <Text style={styles.noSessionText}>No hay ninguna sesión activa.</Text>
-          <Pressable style={styles.linkBtn} onPress={() => router.replace('/(tabs)')}>
-            <Text style={styles.linkText}>Volver al inicio</Text>
-          </Pressable>
-        </View>
-      </Screen>
-    );
-  }
-
-  const allDone = blocks.length > 0 && blocks.every((b) => b.status === 'done');
-  const pendingCount = blocks.filter((b) => b.status !== 'done').length;
+  if (loading || !session) return <Loading />;
 
   const handlePause = async () => {
     await pauseSession(db, session.id);
-    await refresh();
-    router.replace('/(tabs)');
+    await load();
+  };
+
+  const handleResume = async () => {
+    await resumeSession(db, session.id);
+    await load();
   };
 
   const handleFinish = () => {
@@ -100,8 +91,7 @@ export default function SessionScreen() {
         text: 'Finalizar',
         onPress: async () => {
           await finishSession(db, session.id);
-          await refresh();
-          router.replace('/(tabs)');
+          await refresh(); // el tab "Entreno" volverá a mostrar el Inicio
         },
       },
     ]);
@@ -116,11 +106,43 @@ export default function SessionScreen() {
         onPress: async () => {
           await discardSession(db, session.id);
           await refresh();
-          router.replace('/(tabs)');
         },
       },
     ]);
   };
+
+  // --- Estado pausado: tarjeta compacta para reanudar ---
+  if (session.status === 'paused') {
+    return (
+      <Screen>
+        <View style={styles.pausedWrap}>
+          <View style={styles.pausedCard}>
+            <MaterialCommunityIcons name="pause-circle" size={48} color={GymTheme.primary} />
+            <Text style={styles.pausedTitle}>Entrenamiento en pausa</Text>
+            <Text style={styles.pausedDay}>{session.day_name}</Text>
+            <Text style={styles.pausedSub}>Inicio · {formatHM(session.start_ts)}</Text>
+            <Button
+              title="Reanudar"
+              variant="active"
+              onPress={handleResume}
+              left={<MaterialCommunityIcons name="play" size={18} color="#06210F" />}
+              style={{ alignSelf: 'stretch' }}
+            />
+            <Button
+              title="Finalizar entrenamiento"
+              variant="surface"
+              onPress={handleFinish}
+              style={{ alignSelf: 'stretch' }}
+            />
+            <Button title="Descartar" variant="ghost" onPress={handleDiscard} style={{ alignSelf: 'stretch' }} />
+          </View>
+        </View>
+      </Screen>
+    );
+  }
+
+  const allDone = blocks.length > 0 && blocks.every((b) => b.status === 'done');
+  const pendingCount = blocks.filter((b) => b.status !== 'done').length;
 
   const openPicker = async () => {
     setCatalog(await listExercises(db));
@@ -134,12 +156,12 @@ export default function SessionScreen() {
   };
 
   return (
-    <Screen edges={['top']}>
-      {/* Cabecera */}
+    <Screen>
+      {/* Cabecera (sin escape al Inicio) */}
       <View style={styles.header}>
-        <Pressable onPress={handlePause} hitSlop={8} style={styles.headerIcon}>
-          <MaterialCommunityIcons name="chevron-down" size={26} color={GymTheme.textMuted} />
-        </Pressable>
+        <View style={styles.headerIconBox}>
+          <MaterialCommunityIcons name="dumbbell" size={22} color={GymTheme.primary} />
+        </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.dayName}>{session.day_name}</Text>
           <Text style={styles.startedAt}>Inicio · {formatHM(session.start_ts)}</Text>
@@ -149,7 +171,7 @@ export default function SessionScreen() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 160 }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 130 }]}>
         {focusedId == null && pendingCount > 0 ? (
           <View style={styles.pickHint}>
             <MaterialCommunityIcons name="gesture-tap" size={18} color={GymTheme.primary} />
@@ -184,8 +206,8 @@ export default function SessionScreen() {
         </Pressable>
       </ScrollView>
 
-      {/* Controles globales sobre la barra de navegación */}
-      <View style={[styles.controls, { paddingBottom: insets.bottom + Spacing.md }]}>
+      {/* Controles globales: SIEMPRE encima de la barra de navegación */}
+      <View style={styles.controls}>
         <Pressable style={[styles.control, styles.controlSurface]} onPress={handlePause}>
           <MaterialCommunityIcons name="content-save-outline" size={20} color={GymTheme.text} />
           <Text style={styles.controlText}>Guardar</Text>
@@ -234,6 +256,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: GymTheme.border,
   },
+  headerIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.md,
+    backgroundColor: GymTheme.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerIcon: { padding: 4 },
   dayName: { color: GymTheme.text, fontSize: 22, fontWeight: '800' },
   startedAt: { color: GymTheme.textMuted, fontSize: 13, marginTop: 2 },
@@ -277,6 +307,7 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
+    paddingBottom: Spacing.md,
     backgroundColor: GymTheme.surface,
     borderTopWidth: 1,
     borderTopColor: GymTheme.border,
@@ -293,10 +324,20 @@ const styles = StyleSheet.create({
   controlSurface: { backgroundColor: GymTheme.surfaceElevated },
   controlPrimary: { backgroundColor: GymTheme.primary, flex: 1.4 },
   controlText: { color: GymTheme.text, fontWeight: '800', fontSize: 15 },
-  noSession: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.md },
-  noSessionText: { color: GymTheme.textMuted, fontSize: 16 },
-  linkBtn: { padding: Spacing.md },
-  linkText: { color: GymTheme.primary, fontWeight: '700', fontSize: 15 },
+  pausedWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.lg },
+  pausedCard: {
+    backgroundColor: GymTheme.surface,
+    borderWidth: 1,
+    borderColor: GymTheme.border,
+    borderRadius: Radius.lg,
+    padding: Spacing.xl,
+    width: '100%',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  pausedTitle: { color: GymTheme.text, fontSize: 20, fontWeight: '800' },
+  pausedDay: { color: GymTheme.primary, fontSize: 17, fontWeight: '700' },
+  pausedSub: { color: GymTheme.textMuted, fontSize: 13, marginBottom: Spacing.sm },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: GymTheme.surface,
