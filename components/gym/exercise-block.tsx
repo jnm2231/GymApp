@@ -22,6 +22,7 @@ interface Props {
   onOpenHistory: (exerciseId: number) => void;
   onFocus: () => void; // pasar a realizar este ejercicio (ponerlo en verde)
   onPostpone: () => void; // posponer el ejercicio activo y elegir otro
+  canFocus: boolean; // false cuando ya hay otro ejercicio en curso
 }
 
 export function ExerciseBlock({
@@ -32,6 +33,7 @@ export function ExerciseBlock({
   onOpenHistory,
   onFocus,
   onPostpone,
+  canFocus,
 }: Props) {
   const db = useSQLiteContext();
   const done = block.status === 'done';
@@ -90,7 +92,7 @@ export function ExerciseBlock({
   if (!isCurrent && !done) {
     const startedSummary = block.sets.length > 0 ? repsSummary(block.sets.map((s) => s.reps)) : null;
     return (
-      <View style={[styles.card, styles.selectable]}>
+      <View style={[styles.card, canFocus ? styles.selectable : styles.waiting]}>
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
             <View style={styles.nameRow}>
@@ -106,10 +108,17 @@ export function ExerciseBlock({
             </Text>
             {ref ? <Text style={styles.refText}>Último: {formatRefSummary(ref)}</Text> : null}
           </View>
-          <Pressable style={styles.playBtn} onPress={onFocus} hitSlop={6}>
-            <MaterialCommunityIcons name="play" size={16} color="#06210F" />
-            <Text style={styles.playText}>{startedSummary ? 'Seguir' : 'Empezar'}</Text>
-          </Pressable>
+          {canFocus ? (
+            <Pressable style={styles.playBtn} onPress={onFocus} hitSlop={6}>
+              <MaterialCommunityIcons name="play" size={16} color="#06210F" />
+              <Text style={styles.playText}>{startedSummary ? 'Seguir' : 'Empezar'}</Text>
+            </Pressable>
+          ) : (
+            <View style={styles.waitingChip}>
+              <MaterialCommunityIcons name="timer-sand" size={14} color={GymTheme.textFaint} />
+              <Text style={styles.waitingText}>{startedSummary ? 'En pausa' : 'En espera'}</Text>
+            </View>
+          )}
         </View>
       </View>
     );
@@ -286,6 +295,9 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   selectable: { opacity: 0.92 },
+  waiting: { opacity: 0.5 },
+  waitingChip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  waitingText: { color: GymTheme.textFaint, fontSize: 12, fontWeight: '600' },
   headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
   name: { color: GymTheme.text, fontSize: 18, fontWeight: '800' },

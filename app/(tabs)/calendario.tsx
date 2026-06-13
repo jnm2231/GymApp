@@ -2,9 +2,14 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
+import Animated, {
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { Screen } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
@@ -19,12 +24,28 @@ const WEEKDAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
 export default function CalendarioScreen() {
   const db = useSQLiteContext();
+  const { width } = useWindowDimensions();
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [sessions, setSessions] = useState<Record<string, CalendarSession[]>>({});
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerYear, setPickerYear] = useState(today.getFullYear());
+
+  // Animación de deslizamiento al cambiar de mes.
+  const tx = useSharedValue(0);
+  const opacity = useSharedValue(1);
+  const gridAnim = useAnimatedStyle(() => ({
+    transform: [{ translateX: tx.value }],
+    opacity: opacity.value,
+  }));
+  const animateSlide = (delta: number) => {
+    // El nuevo mes entra desde el lado opuesto al gesto.
+    tx.value = delta > 0 ? width : -width;
+    opacity.value = 0.3;
+    tx.value = withTiming(0, { duration: 240 });
+    opacity.value = withTiming(1, { duration: 240 });
+  };
 
   const load = useCallback(async () => {
     const start = new Date(year, month, 1).getTime();
@@ -50,12 +71,15 @@ export default function CalendarioScreen() {
     }
     setMonth(m);
     setYear(y);
+    animateSlide(delta);
   };
 
-  const swipe = Gesture.Pan().onEnd((e) => {
-    if (e.translationX < -50) runOnJS(changeMonth)(1);
-    else if (e.translationX > 50) runOnJS(changeMonth)(-1);
-  });
+  const swipe = Gesture.Pan()
+    .activeOffsetX([-15, 15])
+    .onEnd((e) => {
+      if (e.translationX < -50) runOnJS(changeMonth)(1);
+      else if (e.translationX > 50) runOnJS(changeMonth)(-1);
+    });
 
   const firstWeekday = (new Date(year, month, 1).getDay() + 6) % 7; // Lunes = 0
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -78,9 +102,11 @@ export default function CalendarioScreen() {
   };
 
   const selectPicker = (m: number) => {
+    const delta = pickerYear * 12 + m - (year * 12 + month);
     setMonth(m);
     setYear(pickerYear);
     setPickerOpen(false);
+    if (delta !== 0) animateSlide(delta);
   };
 
   return (
@@ -114,7 +140,7 @@ export default function CalendarioScreen() {
       </View>
 
       <GestureDetector gesture={swipe}>
-        <View style={styles.grid}>
+        <Animated.View style={[styles.grid, gridAnim]}>
           {weeks.map((week, wi) => (
             <View key={`w${wi}`} style={styles.weekCells}>
               {week.map((d, di) => {
@@ -143,7 +169,7 @@ export default function CalendarioScreen() {
               })}
             </View>
           ))}
-        </View>
+        </Animated.View>
       </GestureDetector>
 
       {/* Selector rápido de mes/año */}

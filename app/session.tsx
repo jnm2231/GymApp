@@ -167,6 +167,7 @@ export default function SessionScreen() {
             onOpenHistory={(exId) => router.push({ pathname: '/exercise/[id]', params: { id: String(exId) } })}
             onFocus={() => setFocusedId(b.id)}
             onPostpone={() => setFocusedId(null)}
+            canFocus={focusedId == null}
           />
         ))}
 
