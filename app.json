@@ -12,6 +12,8 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.jnm2231.gymapp",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#0C0C0E",
         "foregroundImage": "./assets/images/logo.png"
@@ -42,6 +44,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2f4320d5-c972-47a8-ac4b-2fa6844cd3df"
+      }
+    },
+    "owner": "jnm2231"
   }
 }
