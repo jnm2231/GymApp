@@ -2,11 +2,9 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -29,11 +27,14 @@ import { getDevNote, saveDevNote } from '@/db/notes';
 import { getUserWeight, setUserWeight } from '@/db/settings';
 import type { Exercise } from '@/db/types';
 import { exportBackup, importBackup } from '@/lib/backup-io';
+import { useKeyboardHeight } from '@/lib/use-keyboard';
 
 export default function AjustesScreen() {
   const db = useSQLiteContext();
   const insets = useSafeAreaInsets();
   const { refresh } = useSession();
+  const scrollRef = useRef<ScrollView>(null);
+  const keyboardHeight = useKeyboardHeight();
 
   const [weight, setWeight] = useState('');
   const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -140,11 +141,13 @@ export default function AjustesScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: GymTheme.background }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <View style={{ flex: 1, backgroundColor: GymTheme.background }}>
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.sm }]}
+        ref={scrollRef}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + Spacing.sm, paddingBottom: Spacing.xxl + keyboardHeight },
+        ]}
         keyboardShouldPersistTaps="handled">
         <ScreenTitle>Ajustes</ScreenTitle>
 
@@ -269,6 +272,7 @@ export default function AjustesScreen() {
             value={note}
             onChangeText={setNote}
             onBlur={handleSaveNote}
+            onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150)}
             multiline
             textAlignVertical="top"
           />
@@ -282,7 +286,7 @@ export default function AjustesScreen() {
           </Text>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

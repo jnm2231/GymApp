@@ -20,6 +20,7 @@ import {
 } from '@/db/sessions';
 import type { Exercise, Session, SessionExerciseWithSets } from '@/db/types';
 import { formatHM } from '@/lib/format';
+import { useKeyboardHeight } from '@/lib/use-keyboard';
 
 /**
  * Vista de la sesión activa. Se renderiza DENTRO de la pestaña "Entreno"
@@ -37,6 +38,17 @@ export function SessionView() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [catalog, setCatalog] = useState<Exercise[]>([]);
   const initRef = useRef(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const blockY = useRef<Record<number, number>>({});
+  const keyboardHeight = useKeyboardHeight();
+
+  // Desplaza el bloque activo por encima del teclado al enfocar el input de repes.
+  const scrollToBlock = useCallback((id: number) => {
+    setTimeout(() => {
+      const y = blockY.current[id];
+      if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - 60), animated: true });
+    }, 120);
+  }, []);
 
   const load = useCallback(async () => {
     const s = await getActiveSession(db);
@@ -171,7 +183,10 @@ export function SessionView() {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 130 }]}>
+      <ScrollView
+        ref={scrollRef}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={[styles.content, { paddingBottom: 130 + keyboardHeight }]}>
         {focusedId == null && pendingCount > 0 ? (
           <View style={styles.pickHint}>
             <MaterialCommunityIcons name="gesture-tap" size={18} color={GymTheme.primary} />
@@ -180,17 +195,23 @@ export function SessionView() {
         ) : null}
 
         {blocks.map((b) => (
-          <ExerciseBlock
+          <View
             key={b.id}
-            block={b}
-            isCurrent={b.id === focusedId}
-            sessionId={session.id}
-            onChanged={load}
-            onOpenHistory={(exId) => router.push({ pathname: '/exercise/[id]', params: { id: String(exId) } })}
-            onFocus={() => setFocusedId(b.id)}
-            onPostpone={() => setFocusedId(null)}
-            canFocus={focusedId == null}
-          />
+            onLayout={(e) => {
+              blockY.current[b.id] = e.nativeEvent.layout.y;
+            }}>
+            <ExerciseBlock
+              block={b}
+              isCurrent={b.id === focusedId}
+              sessionId={session.id}
+              onChanged={load}
+              onOpenHistory={(exId) => router.push({ pathname: '/exercise/[id]', params: { id: String(exId) } })}
+              onFocus={() => setFocusedId(b.id)}
+              onPostpone={() => setFocusedId(null)}
+              canFocus={focusedId == null}
+              onRepsFocus={() => scrollToBlock(b.id)}
+            />
+          </View>
         ))}
 
         {allDone ? (

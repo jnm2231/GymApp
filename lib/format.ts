@@ -50,3 +50,11 @@ export function formatDuration(startTs: number | null, endTs: number | null): st
 export function repsSummary(reps: number[]): string {
   return reps.join('-');
 }
+
+/** Cronómetro en vivo "M:SS" (cuenta ascendente, sin horas). */
+export function formatClock(seconds: number): string {
+  const safe = Math.max(0, Math.floor(seconds));
+  const m = Math.floor(safe / 60);
+  const s = safe % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}

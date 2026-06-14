@@ -12,7 +12,7 @@ import {
   updateSetReps,
 } from '@/db/sessions';
 import type { SessionExerciseWithSets } from '@/db/types';
-import { formatHM, formatRest, repsSummary } from '@/lib/format';
+import { formatClock, formatHM, formatRest, repsSummary } from '@/lib/format';
 
 interface Props {
   block: SessionExerciseWithSets;
@@ -23,6 +23,24 @@ interface Props {
   onFocus: () => void; // pasar a realizar este ejercicio (ponerlo en verde)
   onPostpone: () => void; // posponer el ejercicio activo y elegir otro
   canFocus: boolean; // false cuando ya hay otro ejercicio en curso
+  onRepsFocus?: () => void; // el input de repes recibe el foco (para subir el scroll)
+}
+
+/** Cronómetro en vivo del descanso: cuenta desde la última serie confirmada. */
+function RestClock({ sinceTs }: { sinceTs: number }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => (t + 1) % 1000000), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const elapsed = Math.floor((Date.now() - sinceTs) / 1000);
+  return (
+    <View style={styles.restClock}>
+      <MaterialCommunityIcons name="timer-sand-complete" size={15} color={GymTheme.primary} />
+      <Text style={styles.restClockText}>{formatClock(elapsed)}</Text>
+      <Text style={styles.restClockLabel}>de descanso</Text>
+    </View>
+  );
 }
 
 export function ExerciseBlock({
@@ -34,6 +52,7 @@ export function ExerciseBlock({
   onFocus,
   onPostpone,
   canFocus,
+  onRepsFocus,
 }: Props) {
   const db = useSQLiteContext();
   const done = block.status === 'done';
@@ -207,6 +226,11 @@ export function ExerciseBlock({
               </View>
             ))}
 
+            {/* Cronómetro de descanso en vivo desde la última serie */}
+            {isCurrent && !done && block.sets.length > 0 ? (
+              <RestClock sinceTs={block.sets[block.sets.length - 1].ts} />
+            ) : null}
+
             {/* Nueva fila de serie (sólo bloque actual no terminado) */}
             {isCurrent && !done ? (
               <View style={styles.newSetRow}>
@@ -219,6 +243,7 @@ export function ExerciseBlock({
                   value={repsInput}
                   onChangeText={setRepsInput}
                   onSubmitEditing={confirmSet}
+                  onFocus={onRepsFocus}
                   returnKeyType="done"
                 />
                 <Pressable
@@ -397,6 +422,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tickDisabled: { opacity: 0.4 },
+  restClock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    backgroundColor: GymTheme.primaryDim,
+    borderRadius: Radius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginTop: Spacing.xs,
+  },
+  restClockText: {
+    color: GymTheme.primary,
+    fontSize: 16,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+    letterSpacing: 0.5,
+  },
+  restClockLabel: { color: GymTheme.textMuted, fontSize: 12, fontWeight: '600' },
   hint: { color: GymTheme.textFaint, fontSize: 13, fontStyle: 'italic' },
   refText: { color: GymTheme.textFaint, fontSize: 12 },
   actions: {
