@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAlert } from '@/components/gym/alert';
+import { CopyButton } from '@/components/gym/copy-button';
 import { SaveButton } from '@/components/gym/save-button';
 import { Button, ScreenTitle } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
@@ -47,7 +48,6 @@ export default function AjustesScreen() {
   const [newName, setNewName] = useState('');
   const [newCorporal, setNewCorporal] = useState(false);
   const [note, setNote] = useState('');
-  const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -147,14 +147,13 @@ export default function AjustesScreen() {
     await saveDevNote(db, note);
   };
 
-  const handleCopyNote = async () => {
+  const handleCopyNote = async (): Promise<boolean> => {
     if (!note.trim()) {
       showAlert('Nota vacía', 'No hay nada que copiar.');
-      return;
+      return false;
     }
     await Clipboard.setStringAsync(note);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1300);
+    return true;
   };
 
   return (
@@ -306,19 +305,7 @@ export default function AjustesScreen() {
             textAlignVertical="top"
           />
           <View style={styles.noteActions}>
-            <Button
-              title={copied ? '¡Copiado!' : 'Copiar'}
-              variant="surface"
-              onPress={handleCopyNote}
-              left={
-                <MaterialCommunityIcons
-                  name={copied ? 'check' : 'content-copy'}
-                  size={16}
-                  color={copied ? GymTheme.active : GymTheme.text}
-                />
-              }
-              style={{ flex: 1 }}
-            />
+            <CopyButton onPress={handleCopyNote} style={{ flex: 1 }} />
             <SaveButton title="Guardar nota" onPress={handleSaveNote} style={{ flex: 1 }} />
           </View>
         </View>

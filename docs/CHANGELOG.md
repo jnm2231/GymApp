@@ -40,7 +40,9 @@ que se publica en cada APK.
   de tarjetas y botones). Implementado con un `AlertProvider` propio y un hook
   `useAlert()` con API similar a `Alert.alert`.
 - **Notas de desarrollo: botón «Copiar».** Copia el texto de las notas al
-  portapapeles, con confirmación breve («¡Copiado!»).
+  portapapeles, con su propia animación (un icono fantasma se eleva y se
+  desvanece, y un tick se «sella») y la etiqueta cambia a «¡Copiado!». Mismo
+  tamaño que el botón de guardar.
 - **Catálogo de ejercicios plegable.** Cuando hay más de 5 ejercicios, la lista
   muestra solo los primeros con un botón «Ver todos (N) / Ver menos», para que
   Ajustes no se haga interminable.
