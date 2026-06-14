@@ -52,6 +52,7 @@ export default function RootLayout() {
                     />
                     <Stack.Screen name="exercise/[id]" options={{ title: 'Histórico' }} />
                     <Stack.Screen name="day-detail/[date]" options={{ title: 'Detalle del día' }} />
+                    <Stack.Screen name="patch-notes" options={{ title: 'Historial de versiones' }} />
                   </Stack>
                   <StatusBar style="light" />
                 </AlertProvider>

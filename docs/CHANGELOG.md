@@ -1,108 +1,90 @@
-# Patch notes — GymApp
+# Notas de versión — GymApp
 
-Registro de cambios entre versiones. Útil para redactar las notas de la versión
-que se publica en cada APK.
+Registro formal de cambios entre versiones. La aplicación muestra estas mismas
+notas en **Ajustes → Historial de versiones** (fuente:
+`constants/patch-notes.ts`); ambos archivos deben mantenerse alineados al
+publicar una versión.
 
 > Versionado semántico: `MAYOR.MENOR.PARCHE`.
 > `PARCHE` = correcciones · `MENOR` = funcionalidades nuevas compatibles.
 
 ---
 
+## v1.2.0 — 2026-06-14
+
+### Nuevas funcionalidades
+- **Historial de versiones.** Nueva pantalla accesible desde Ajustes que recoge
+  las notas de cada versión, organizadas en los apartados «Nuevas
+  funcionalidades» y «Solución de errores». El contenido se centraliza en
+  `constants/patch-notes.ts` y la versión más reciente queda destacada.
+
+### Solución de errores
+- Sin correcciones en esta versión.
+
+---
+
 ## v1.1.0 — 2026-06-14
 
-### ✨ Nuevo
-- **Temporizador de descanso en vivo.** En el ejercicio activo, tras confirmar
-  una serie aparece un cronómetro (`M:SS`) que cuenta el tiempo transcurrido
-  desde la última serie, para controlar el descanso de un vistazo. No corre en
-  segundo plano: se calcula a partir de la marca de tiempo de la última serie.
-- **Feedback animado al guardar.** Los botones «Guardar» de Ajustes (peso y
-  notas) confirman la acción con una animación: el botón se tiñe de verde y
-  vuelve progresivamente a su color mientras un tick aparece, brilla y se
-  desvanece «explotando».
-- **Autoría en Ajustes.** El pie de la pantalla de Ajustes muestra
-  «Creado por jnm2231».
-- **Calendario: swipe interactivo.** El arrastre sigue al dedo mostrando el mes
-  adyacente en tiempo real; si no se supera el umbral (o se mantiene el dedo), el
-  mes vuelve a su sitio sin cambiar. Implementado con paginado nativo
-  (`FlatList`), con meses reales (±10 años) que se deslizan junto al mes actual.
-- **Calendario: rediseño visual.** Cada día es ahora una celda redondeada tipo
-  «tile» con su propia separación, los días con entreno se tiñen sutilmente y el
-  día de hoy se resalta con el número dentro de un círculo naranja.
-- **Calendario: un recuadro por tipo de día.** Si un día tiene varios tipos de
-  día (p. ej. Pecho y Espalda), se muestran como recuadros separados. El
-  «+N más» aparece solo cuando ya no caben más en la celda (se calcula según el
-  alto disponible).
-- **Detalle del día: acceso directo si solo hay un tipo de día.** Al pulsar un
-  día del calendario con un único tipo de día, se salta el nivel intermedio y se
-  abren directamente sus ejercicios.
-- **Diálogos con estilo propio.** Los cuadros de aviso/confirmación dejan de ser
-  los blancos del sistema y pasan a usar el tema oscuro de la app (mismo estilo
-  de tarjetas y botones). Implementado con un `AlertProvider` propio y un hook
-  `useAlert()` con API similar a `Alert.alert`.
-- **Notas de desarrollo: botón «Copiar».** Copia el texto de las notas al
-  portapapeles, con su propia animación (un icono fantasma se eleva y se
-  desvanece, y un tick se «sella») y la etiqueta cambia a «¡Copiado!». Mismo
-  tamaño que el botón de guardar.
-- **Catálogo de ejercicios plegable.** Cuando hay más de 5 ejercicios, la lista
-  muestra solo los primeros con un botón «Ver todos (N) / Ver menos», para que
-  Ajustes no se haga interminable.
+### Nuevas funcionalidades
+- **Temporizador de descanso en vivo.** Durante el ejercicio activo, al
+  confirmar una serie aparece un cronómetro (formato `M:SS`) que indica el
+  tiempo transcurrido desde la última serie. Se calcula a partir de marcas de
+  tiempo, sin procesos en segundo plano.
+- **Confirmación visual al guardar.** Los botones de guardado de Ajustes (peso y
+  notas) confirman la acción mediante una animación de color y un indicador de
+  éxito.
+- **Calendario con desplazamiento interactivo.** El arrastre sigue al dedo y
+  muestra el mes adyacente en tiempo real; el cambio de mes se confirma
+  únicamente al superar el umbral. Implementado con paginado nativo
+  (`FlatList`) sobre meses reales (±10 años).
+- **Rediseño visual del calendario.** Los días se representan como celdas
+  redondeadas; las jornadas con entrenamiento se resaltan y el día actual se
+  destaca con su número dentro de un círculo.
+- **Un marcador por tipo de día.** Cuando una jornada incluye varios tipos de
+  día, cada uno se muestra como un recuadro independiente, con un indicador
+  «+N más» cuando no caben todos (calculado según el alto disponible).
+- **Acceso directo en el detalle del día.** Si la jornada tiene un único tipo de
+  día, se omite el nivel intermedio y se abren directamente sus ejercicios.
+- **Diálogos con estilo propio.** Los avisos y confirmaciones adoptan el tema
+  oscuro de la aplicación, en sustitución de los cuadros del sistema
+  (`AlertProvider` propio y hook `useAlert()`).
+- **Copia al portapapeles en Notas de desarrollo.** Nuevo botón para copiar el
+  contenido de las notas, con su propia animación.
+- **Catálogo de ejercicios plegable.** Con más de cinco ejercicios, el catálogo
+  se contrae y se despliega mediante un control «Ver todos».
+- **Autoría en Ajustes.** La pantalla de Ajustes muestra el crédito «Creado por
+  jnm2231».
 
-### 🐛 Correcciones / mejoras de usabilidad
-- **El teclado ya no tapa los campos de texto.** Al escribir las notas de
-  desarrollo (Ajustes) o las repeticiones de un ejercicio al final de la lista,
-  la pantalla se desplaza automáticamente para mantener el campo visible por
-  encima del teclado.
-- **Arreglado el empaquetado web.** Se añadió `metro.config.js` con soporte para
-  `.wasm` y cabeceras COOP/COEP, necesarios para `expo-sqlite` en web. El error
-  «Unable to resolve module ./wa-sqlite/wa-sqlite.wasm» ya no aparece (solo
+### Solución de errores
+- **El teclado ya no oculta los campos de texto.** Al editar las notas de
+  desarrollo o las repeticiones al final de la lista, la pantalla se desplaza
+  para mantener el campo visible por encima del teclado.
+- **Corregido el parpadeo del calendario al cambiar de mes.**
+  - *Síntoma:* al terminar el swipe entre meses se veía durante un instante el
+    mes anterior (o uno equivocado) antes de asentarse el nuevo.
+  - *Causa:* el paginador propio tenía 3 paneles reciclados; el `setState` del
+    mes nuevo (render asíncrono de React) y el recentrado del carril (hilo de
+    UI) no quedaban sincronizados, colándose un fotograma con el mes incorrecto.
+  - *Arreglo:* se eliminó el reciclado y se pasó a una `FlatList` horizontal con
+    `pagingEnabled` y páginas de meses reales. Al no recolocarse nada, no existe
+    fotograma intermedio que pueda parpadear.
+- **Eliminados los destellos blancos en las transiciones de pantalla.**
+  - *Síntoma:* al abrir el detalle de un día se veía un destello blanco lateral
+    y, al volver atrás, un fotograma blanco a pantalla completa.
+  - *Causa:* la vista raíz no tenía color de fondo, asomando la ventana nativa
+    (blanca) durante las animaciones de navegación.
+  - *Arreglo:* se fijó el fondo oscuro del tema en la vista raíz.
+- **Navegación «atrás» coherente en el detalle del día.** El botón de retroceso
+  respeta el nivel de navegación y vuelve a la lista de tipos de día cuando la
+  jornada tiene varios; con un único tipo de día vuelve al calendario. Se
+  resetean explícitamente `headerLeft`/`gestureEnabled` en el nivel 1, ya que
+  `Stack.Screen` aplica las opciones con *merge*.
+- **Corregido el parpadeo del histórico al cambiar de tipo de día.** Los
+  ejercicios se cargan antes de cambiar de pantalla, evitando que se muestren
+  brevemente los datos del tipo de día anterior.
+- **Corregido el empaquetado para web.** Se añadió `metro.config.js` con soporte
+  para `.wasm` y cabeceras COOP/COEP, necesarios para `expo-sqlite` en web (solo
   afectaba al bundle web, no al móvil).
-- **Arreglado el "flashazo" del calendario al cambiar de mes.**
-  - *Síntoma:* al terminar el swipe entre meses, durante una fracción de segundo
-    se veía centrado el mes anterior (o un mes equivocado) antes de asentarse el
-    nuevo.
-  - *Causa:* el pager casero tenía 3 paneles `[anterior][actual][siguiente]` que
-    se **reciclaban**: al confirmar el cambio se hacían a la vez el `setState`
-    del mes nuevo (re-render **asíncrono** de React) y el recentrado del carril
-    (`translateX`, en el hilo de UI). En React Native el render cruza el puente
-    de forma asíncrona, así que ese recentrado nunca queda perfectamente
-    sincronizado con el repintado nativo y se colaba un frame con el mes
-    incorrecto centrado. Un primer intento con `useLayoutEffect` redujo el flash
-    pero no lo eliminó (la sincronía JS↔UI sigue sin estar garantizada).
-  - *Arreglo:* se eliminó el reciclado de paneles. El calendario pasa a usar una
-    **`FlatList` horizontal con `pagingEnabled`** y páginas de meses **reales**
-    (±10 años). El paginado, el arrastre que sigue al dedo y el *snap* (volver si
-    no se pasa la mitad) los hace el sistema de forma nativa, y como ya **no se
-    recoloca nada**, no existe ningún frame intermedio que pueda parpadear. Los
-    meses cargan sus sesiones de forma incremental al desplazarse y se acumulan
-    en memoria. La ventana de meses está anclada al mes real actual (no a la
-    fecha de instalación), así que se desliza con el tiempo y nunca «se acaba».
-- **Arreglado el flash blanco en las transiciones de pantalla.**
-  - *Síntoma:* al abrir el detalle de un día se veía un destello blanco en un
-    lateral, y al volver atrás un frame blanco a pantalla completa.
-  - *Causa:* la vista raíz (`GestureHandlerRootView` / `SafeAreaProvider`) no
-    tenía color de fondo, así que durante las animaciones de navegación se
-    asomaba por un frame la ventana nativa (blanca por defecto).
-  - *Arreglo:* se fijó el fondo oscuro del tema en la vista raíz, de modo que
-    cualquier hueco transitorio durante las transiciones se ve oscuro.
-- **Detalle del día: el botón «atrás» respeta el nivel de navegación.**
-  - *Síntoma:* dentro de un tipo de día (nivel 2), la flecha del header llevaba
-    directamente al calendario en vez de volver a la lista de tipos de día.
-  - *Causa:* los niveles 1 (tipos de día) y 2 (ejercicios) viven en la misma
-    ruta con estado interno; la flecha nativa hacía `pop` de toda la ruta.
-  - *Arreglo:* cuando la jornada tiene varios tipos de día, el «atrás» (flecha
-    del header y botón físico de Android) vuelve primero al nivel 1. Si solo hay
-    un tipo de día (acceso directo), el «atrás» va al calendario como toca.
-  - *Apunte (segundo arreglo):* `Stack.Screen` aplica las opciones con *merge*,
-    así que al volver del nivel 2 al nivel 1 se conservaba el `headerLeft`
-    personalizado y la flecha del nivel 1 dejaba de llevar al calendario. Se
-    resetean explícitamente `headerLeft`/`gestureEnabled` en el nivel 1.
-- **Arreglado el flash en el histórico al cambiar de tipo de día.**
-  - *Síntoma:* al entrar en un tipo de día, volver atrás y elegir otro, se veían
-    por un instante los ejercicios del tipo de día anterior.
-  - *Causa:* se cambiaba de nivel (`setSelectedDay`) antes de que terminara la
-    consulta de ejercicios, así que el nivel 2 se pintaba con la lista vieja.
-  - *Arreglo:* ahora se cargan los ejercicios **antes** de cambiar de nivel, de
-    modo que la nueva pantalla aparece ya con los datos correctos.
 
 ---
 
@@ -110,11 +92,12 @@ que se publica en cada APK.
 
 Primera versión funcional compilada como APK (perfil `preview`).
 
+### Nuevas funcionalidades
 - Registro de entrenamientos 100% local (SQLite), sin conexión ni cuenta.
 - Días de entrenamiento configurables a partir de un catálogo de ejercicios.
-- Sesión activa con peso global por ejercicio, series inline y cálculo del
+- Sesión activa con peso global por ejercicio, series en línea y cálculo del
   descanso por marcas de tiempo; orden libre y posponer/añadir ejercicios.
-- Calendario mensual con marcadores y drill-down por jornada.
+- Calendario mensual con marcadores y navegación detallada por jornada.
 - Histórico con gráfico de 1RM promedio y lista de registros.
 - Ajustes: catálogo de ejercicios (flag corporal), peso del usuario, copias de
   seguridad (export/import `.json`, excluyendo notas) y notas de desarrollo.

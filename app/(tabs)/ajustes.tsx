@@ -20,6 +20,7 @@ import { CopyButton } from '@/components/gym/copy-button';
 import { SaveButton } from '@/components/gym/save-button';
 import { Button, ScreenTitle } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
+import { CURRENT_VERSION } from '@/constants/patch-notes';
 import { useSession } from '@/context/session-context';
 import {
   createExercise,
@@ -310,11 +311,23 @@ export default function AjustesScreen() {
           </View>
         </View>
 
+        {/* Información */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Información</Text>
+          <Text style={styles.cardSub}>Consulta las novedades y correcciones de cada versión.</Text>
+          <Button
+            title="Historial de versiones"
+            variant="surface"
+            left={<MaterialCommunityIcons name="history" size={18} color={GymTheme.text} />}
+            onPress={() => router.push('/patch-notes')}
+          />
+        </View>
+
         <View style={styles.about}>
           <View style={styles.aboutRow}>
             <Ionicons name="barbell" size={16} color={GymTheme.textFaint} />
             <Text style={styles.version}>
-              GymApp v{Constants.expoConfig?.version ?? '1.1.0'} · datos sólo en este dispositivo
+              GymApp v{Constants.expoConfig?.version ?? CURRENT_VERSION} · datos sólo en este dispositivo
             </Text>
           </View>
           <Text style={styles.author}>Creado por jnm2231</Text>
