@@ -23,11 +23,18 @@ que se publica en cada APK.
   «Creado por jnm2231».
 - **Calendario: swipe interactivo.** El arrastre sigue al dedo mostrando el mes
   adyacente en tiempo real; si no se supera el umbral (o se mantiene el dedo), el
-  mes vuelve a su sitio sin cambiar. Se cargan los tres meses visibles (anterior,
-  actual y siguiente) en una sola consulta para que la transición sea fluida.
+  mes vuelve a su sitio sin cambiar. Implementado con paginado nativo
+  (`FlatList`), con meses reales (±10 años) que se deslizan junto al mes actual.
 - **Calendario: rediseño visual.** Cada día es ahora una celda redondeada tipo
   «tile» con su propia separación, los días con entreno se tiñen sutilmente y el
   día de hoy se resalta con el número dentro de un círculo naranja.
+- **Calendario: un recuadro por tipo de día.** Si un día tiene varios tipos de
+  día (p. ej. Pecho y Espalda), se muestran como recuadros separados. El
+  «+N más» aparece solo cuando ya no caben más en la celda (se calcula según el
+  alto disponible).
+- **Detalle del día: acceso directo si solo hay un tipo de día.** Al pulsar un
+  día del calendario con un único tipo de día, se salta el nivel intermedio y se
+  abren directamente sus ejercicios.
 
 ### 🐛 Correcciones / mejoras de usabilidad
 - **El teclado ya no tapa los campos de texto.** Al escribir las notas de
@@ -52,11 +59,32 @@ que se publica en cada APK.
     pero no lo eliminó (la sincronía JS↔UI sigue sin estar garantizada).
   - *Arreglo:* se eliminó el reciclado de paneles. El calendario pasa a usar una
     **`FlatList` horizontal con `pagingEnabled`** y páginas de meses **reales**
-    (±5 años). El paginado, el arrastre que sigue al dedo y el *snap* (volver si
+    (±10 años). El paginado, el arrastre que sigue al dedo y el *snap* (volver si
     no se pasa la mitad) los hace el sistema de forma nativa, y como ya **no se
     recoloca nada**, no existe ningún frame intermedio que pueda parpadear. Los
     meses cargan sus sesiones de forma incremental al desplazarse y se acumulan
-    en memoria.
+    en memoria. La ventana de meses está anclada al mes real actual (no a la
+    fecha de instalación), así que se desliza con el tiempo y nunca «se acaba».
+- **Arreglado el flash blanco en las transiciones de pantalla.**
+  - *Síntoma:* al abrir el detalle de un día se veía un destello blanco en un
+    lateral, y al volver atrás un frame blanco a pantalla completa.
+  - *Causa:* la vista raíz (`GestureHandlerRootView` / `SafeAreaProvider`) no
+    tenía color de fondo, así que durante las animaciones de navegación se
+    asomaba por un frame la ventana nativa (blanca por defecto).
+  - *Arreglo:* se fijó el fondo oscuro del tema en la vista raíz, de modo que
+    cualquier hueco transitorio durante las transiciones se ve oscuro.
+- **Detalle del día: el botón «atrás» respeta el nivel de navegación.**
+  - *Síntoma:* dentro de un tipo de día (nivel 2), la flecha del header llevaba
+    directamente al calendario en vez de volver a la lista de tipos de día.
+  - *Causa:* los niveles 1 (tipos de día) y 2 (ejercicios) viven en la misma
+    ruta con estado interno; la flecha nativa hacía `pop` de toda la ruta.
+  - *Arreglo:* cuando la jornada tiene varios tipos de día, el «atrás» (flecha
+    del header y botón físico de Android) vuelve primero al nivel 1. Si solo hay
+    un tipo de día (acceso directo), el «atrás» va al calendario como toca.
+  - *Apunte (segundo arreglo):* `Stack.Screen` aplica las opciones con *merge*,
+    así que al volver del nivel 2 al nivel 1 se conservaba el `headerLeft`
+    personalizado y la flecha del nivel 1 dejaba de llevar al calendario. Se
+    resetean explícitamente `headerLeft`/`gestureEnabled` en el nivel 1.
 
 ---
 

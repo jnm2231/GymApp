@@ -235,6 +235,13 @@ function MonthGrid({
   const isToday = (d: number) =>
     d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
 
+  // Cuántos marcadores caben en una celda según el alto disponible. Si hay más
+  // tipos de día de los que caben, el último hueco se usa para el "+N más".
+  const numWeeks = weeks.length || 1;
+  const weekH = (height - Spacing.md - (numWeeks - 1) * CELL_GAP) / numWeeks;
+  const markerAreaH = weekH - 34; // paddingTop(5) + nº de día(26) + paddingBottom(3)
+  const maxMarkers = Math.max(1, Math.floor((markerAreaH + MARKER_GAP) / (MARKER_H + MARKER_GAP)));
+
   return (
     <View style={[styles.grid, { width, height }]}>
       {weeks.map((week, wi) => (
@@ -242,9 +249,12 @@ function MonthGrid({
           {week.map((d, di) => {
             if (d == null) return <View key={`e${wi}-${di}`} style={styles.cellEmpty} />;
             const key = dateKey(new Date(year, month, d).getTime());
-            const list = sessions[key];
-            const hasTraining = !!list?.length;
+            const list = sessions[key] ?? [];
+            const hasTraining = list.length > 0;
             const todayCell = isToday(d);
+            // Un recuadro por tipo de día; si no caben todos, el último es "+N más".
+            const visible = list.length > maxMarkers ? list.slice(0, Math.max(1, maxMarkers - 1)) : list;
+            const moreCount = list.length - visible.length;
             return (
               <Pressable
                 key={`d${d}`}
@@ -254,11 +264,15 @@ function MonthGrid({
                   <Text style={[styles.dayNum, todayCell && styles.dayNumToday]}>{d}</Text>
                 </View>
                 {hasTraining ? (
-                  <View style={styles.marker}>
-                    <Text style={styles.markerText} numberOfLines={2}>
-                      {list[0].day_name}
-                    </Text>
-                    {list.length > 1 ? <Text style={styles.markerMore}>+{list.length - 1} más</Text> : null}
+                  <View style={styles.markers}>
+                    {visible.map((s, idx) => (
+                      <View key={idx} style={styles.mk}>
+                        <Text style={styles.mkText} numberOfLines={1}>
+                          {s.day_name}
+                        </Text>
+                      </View>
+                    ))}
+                    {moreCount > 0 ? <Text style={styles.mkMore}>+{moreCount} más</Text> : null}
                   </View>
                 ) : null}
               </Pressable>
@@ -271,6 +285,8 @@ function MonthGrid({
 }
 
 const CELL_GAP = 6;
+const MARKER_H = 15; // alto aproximado de cada recuadro de tipo de día
+const MARKER_GAP = 2;
 
 const styles = StyleSheet.create({
   header: {
@@ -321,16 +337,15 @@ const styles = StyleSheet.create({
   dayNumWrapToday: { backgroundColor: GymTheme.primary },
   dayNum: { color: GymTheme.text, fontSize: 15, fontWeight: '600' },
   dayNumToday: { color: '#0C0C0E', fontWeight: '800' },
-  marker: {
-    marginTop: 2,
-    alignSelf: 'stretch',
+  markers: { alignSelf: 'stretch', marginTop: 2, gap: MARKER_GAP },
+  mk: {
     backgroundColor: GymTheme.activeDim,
-    borderRadius: 6,
+    borderRadius: 5,
     paddingHorizontal: 3,
-    paddingVertical: 2,
+    paddingVertical: 1,
   },
-  markerText: { color: GymTheme.active, fontSize: 10, fontWeight: '700', textAlign: 'center' },
-  markerMore: { color: GymTheme.textFaint, fontSize: 9, textAlign: 'center' },
+  mkText: { color: GymTheme.active, fontSize: 9.5, fontWeight: '700', textAlign: 'center' },
+  mkMore: { color: GymTheme.textFaint, fontSize: 9, fontWeight: '600', textAlign: 'center' },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',

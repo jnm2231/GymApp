@@ -31,8 +31,8 @@ const NavTheme = {
 
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: GymTheme.background }}>
+      <SafeAreaProvider style={{ backgroundColor: GymTheme.background }}>
         <Suspense fallback={<Loading />}>
           <SQLiteProvider databaseName={DATABASE_NAME} onInit={initDatabase} useSuspense>
             <SessionProvider>

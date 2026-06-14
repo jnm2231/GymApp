@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { EmptyState, Loading } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
@@ -22,10 +22,26 @@ export default function DayDetailScreen() {
       const [y, m, d] = date.split('-').map(Number);
       const start = new Date(y, m - 1, d).getTime();
       const end = new Date(y, m - 1, d + 1).getTime();
-      setBlocks(await getDayDetail(db, start, end));
+      const data = await getDayDetail(db, start, end);
+      setBlocks(data);
+      // Cambio 1: si la jornada tiene un solo tipo de día, saltamos el nivel 1
+      // y mostramos directamente sus ejercicios (nivel 2).
+      if (data.length === 1) setSelected(data[0]);
       setLoading(false);
     })();
   }, [db, date]);
+
+  // Cuando hay varios tipos de día, el "atrás" del nivel 2 debe volver al nivel 1
+  // (no al calendario). Interceptamos el botón físico de Android.
+  const multi = blocks.length > 1;
+  useEffect(() => {
+    if (!(selected && multi)) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setSelected(null);
+      return true;
+    });
+    return () => sub.remove();
+  }, [selected, multi]);
 
   const title = (() => {
     const [y, m, d] = date.split('-').map(Number);
@@ -38,12 +54,29 @@ export default function DayDetailScreen() {
   if (selected) {
     return (
       <>
-        <Stack.Screen options={{ title: selected.day_name }} />
+        <Stack.Screen
+          options={{
+            title: selected.day_name,
+            // Si hay varios tipos de día, la flecha del header vuelve al nivel 1.
+            // Si solo hay uno (auto-seleccionado), deja el comportamiento normal
+            // (volver al calendario) y se permite el gesto de deslizar atrás.
+            gestureEnabled: !multi,
+            headerLeft: multi
+              ? () => (
+                  <Pressable onPress={() => setSelected(null)} hitSlop={8} style={styles.headerBack}>
+                    <MaterialCommunityIcons name="chevron-left" size={26} color={GymTheme.text} />
+                  </Pressable>
+                )
+              : undefined,
+          }}
+        />
         <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-          <Pressable style={styles.backRow} onPress={() => setSelected(null)}>
-            <MaterialCommunityIcons name="chevron-left" size={20} color={GymTheme.textMuted} />
-            <Text style={styles.backText}>Volver a la jornada</Text>
-          </Pressable>
+          {multi ? (
+            <Pressable style={styles.backRow} onPress={() => setSelected(null)}>
+              <MaterialCommunityIcons name="chevron-left" size={20} color={GymTheme.textMuted} />
+              <Text style={styles.backText}>Volver a la jornada</Text>
+            </Pressable>
+          ) : null}
 
           <View style={styles.blockHeader}>
             <Text style={styles.blockTitle}>{selected.day_name}</Text>
@@ -91,10 +124,13 @@ export default function DayDetailScreen() {
     );
   }
 
-  // Nivel 1: tipos de día de la jornada
+  // Nivel 1: tipos de día de la jornada.
+  // Reseteamos headerLeft/gestureEnabled a su valor por defecto: el Stack.Screen
+  // mergea opciones, así que si no lo hacemos se conservaría el headerLeft
+  // personalizado del nivel 2 y la flecha del header no volvería al calendario.
   return (
     <>
-      <Stack.Screen options={{ title }} />
+      <Stack.Screen options={{ title, headerLeft: undefined, gestureEnabled: true }} />
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
         {blocks.length === 0 ? (
           <EmptyState title="Sin entrenamientos ese día" />
@@ -123,6 +159,7 @@ export default function DayDetailScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: GymTheme.background },
   content: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing.xxl },
+  headerBack: { paddingHorizontal: 4 },
   backRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: Spacing.xs },
   backText: { color: GymTheme.textMuted, fontSize: 14, fontWeight: '600' },
   blockHeader: {
