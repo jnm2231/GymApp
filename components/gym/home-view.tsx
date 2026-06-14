@@ -3,8 +3,9 @@ import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { useAlert } from '@/components/gym/alert';
 import { Button, EmptyState, Screen } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { useSession } from '@/context/session-context';
@@ -16,6 +17,7 @@ import type { DayWithCount } from '@/db/types';
  * ninguna sesión activa (si la hay, la pestaña "Entreno" muestra la sesión). */
 export function HomeView() {
   const db = useSQLiteContext();
+  const showAlert = useAlert();
   const { refresh } = useSession();
   const [days, setDays] = useState<DayWithCount[]>([]);
 
@@ -31,10 +33,10 @@ export function HomeView() {
 
   const handleStart = async (day: DayWithCount) => {
     if (day.exercise_count === 0) {
-      Alert.alert('Día vacío', 'Este día no tiene ejercicios. Edítalo para añadir alguno.');
+      showAlert('Día vacío', 'Este día no tiene ejercicios. Edítalo para añadir alguno.');
       return;
     }
-    Alert.alert('Empezar entrenamiento', `Vas a empezar "${day.name}". ¿Listo?`, [
+    showAlert('Empezar entrenamiento', `Vas a empezar "${day.name}". ¿Listo?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Empezar',
@@ -47,7 +49,7 @@ export function HomeView() {
   };
 
   const handleDelete = (day: DayWithCount) => {
-    Alert.alert('Eliminar día', `¿Eliminar la plantilla "${day.name}"? El histórico se conserva.`, [
+    showAlert('Eliminar día', `¿Eliminar la plantilla "${day.name}"? El histórico se conserva.`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar',

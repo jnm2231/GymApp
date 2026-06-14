@@ -3,7 +3,6 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,6 +13,7 @@ import {
   View,
 } from 'react-native';
 
+import { useAlert } from '@/components/gym/alert';
 import { Button, EmptyState } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { createDay, getDay, getDayExercises, updateDay } from '@/db/days';
@@ -22,6 +22,7 @@ import type { Exercise } from '@/db/types';
 
 export default function DayFormScreen() {
   const db = useSQLiteContext();
+  const showAlert = useAlert();
   const params = useLocalSearchParams<{ id?: string }>();
   const dayId = params.id ? Number(params.id) : null;
   const isEdit = dayId != null;
@@ -49,11 +50,11 @@ export default function DayFormScreen() {
   const handleSave = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
-      Alert.alert('Falta el nombre', 'Ponle un nombre al día (ej: Pecho).');
+      showAlert('Falta el nombre', 'Ponle un nombre al día (ej: Pecho).');
       return;
     }
     if (selected.length === 0) {
-      Alert.alert('Sin ejercicios', 'Selecciona al menos un ejercicio para el día.');
+      showAlert('Sin ejercicios', 'Selecciona al menos un ejercicio para el día.');
       return;
     }
     if (isEdit) {

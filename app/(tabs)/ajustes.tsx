@@ -1,10 +1,10 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import Constants from 'expo-constants';
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useRef, useState } from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAlert } from '@/components/gym/alert';
 import { SaveButton } from '@/components/gym/save-button';
 import { Button, ScreenTitle } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
@@ -30,8 +31,11 @@ import type { Exercise } from '@/db/types';
 import { exportBackup, importBackup } from '@/lib/backup-io';
 import { useKeyboardHeight } from '@/lib/use-keyboard';
 
+const CATALOG_PREVIEW = 5; // ejercicios visibles antes de "Ver todos"
+
 export default function AjustesScreen() {
   const db = useSQLiteContext();
+  const showAlert = useAlert();
   const insets = useSafeAreaInsets();
   const { refresh } = useSession();
   const scrollRef = useRef<ScrollView>(null);
@@ -39,9 +43,11 @@ export default function AjustesScreen() {
 
   const [weight, setWeight] = useState('');
   const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [catalogExpanded, setCatalogExpanded] = useState(false);
   const [newName, setNewName] = useState('');
   const [newCorporal, setNewCorporal] = useState(false);
   const [note, setNote] = useState('');
+  const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -72,12 +78,12 @@ export default function AjustesScreen() {
       setNewCorporal(false);
       await load();
     } catch {
-      Alert.alert('Ya existe', `El ejercicio "${name}" ya está en el catálogo.`);
+      showAlert('Ya existe', `El ejercicio "${name}" ya está en el catálogo.`);
     }
   };
 
   const handleDeleteExercise = (ex: Exercise) => {
-    Alert.alert(
+    showAlert(
       'Eliminar ejercicio',
       `¿Eliminar "${ex.name}" del catálogo? Se quitará de las plantillas de día. El histórico se conserva.`,
       [
@@ -99,14 +105,14 @@ export default function AjustesScreen() {
       setBusy(true);
       await exportBackup(db);
     } catch (e) {
-      Alert.alert('Error al exportar', e instanceof Error ? e.message : 'Error desconocido.');
+      showAlert('Error al exportar', e instanceof Error ? e.message : 'Error desconocido.');
     } finally {
       setBusy(false);
     }
   };
 
   const handleImport = () => {
-    Alert.alert(
+    showAlert(
       'Importar copia de seguridad',
       'Se SOBRESCRIBIRÁN todos los datos actuales (ejercicios, días, sesiones e histórico) con los del archivo. Las Notas de Desarrollo no se ven afectadas. ¿Continuar?',
       [
@@ -121,10 +127,10 @@ export default function AjustesScreen() {
               if (ok) {
                 await load();
                 await refresh();
-                Alert.alert('Restauración completada', 'Los datos se han importado correctamente.');
+                showAlert('Restauración completada', 'Los datos se han importado correctamente.');
               }
             } catch (e) {
-              Alert.alert(
+              showAlert(
                 'Error al importar',
                 e instanceof Error ? e.message : 'No se han podido importar los datos.'
               );
@@ -139,6 +145,16 @@ export default function AjustesScreen() {
 
   const handleSaveNote = async () => {
     await saveDevNote(db, note);
+  };
+
+  const handleCopyNote = async () => {
+    if (!note.trim()) {
+      showAlert('Nota vacía', 'No hay nada que copiar.');
+      return;
+    }
+    await Clipboard.setStringAsync(note);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1300);
   };
 
   return (
@@ -183,7 +199,7 @@ export default function AjustesScreen() {
             propio cuenta para el 1RM (ej: dominadas).
           </Text>
 
-          {exercises.map((ex) => (
+          {(catalogExpanded ? exercises : exercises.slice(0, CATALOG_PREVIEW)).map((ex) => (
             <View key={ex.id} style={styles.exerciseRow}>
               <MaterialCommunityIcons
                 name={ex.es_corporal ? 'human-handsup' : 'weight'}
@@ -199,6 +215,18 @@ export default function AjustesScreen() {
           ))}
           {exercises.length === 0 ? (
             <Text style={styles.muted}>Aún no hay ejercicios. Crea el primero abajo.</Text>
+          ) : null}
+          {exercises.length > CATALOG_PREVIEW ? (
+            <Pressable style={styles.expandRow} onPress={() => setCatalogExpanded((v) => !v)}>
+              <Text style={styles.expandText}>
+                {catalogExpanded ? 'Ver menos' : `Ver todos (${exercises.length})`}
+              </Text>
+              <MaterialCommunityIcons
+                name={catalogExpanded ? 'chevron-up' : 'chevron-down'}
+                size={18}
+                color={GymTheme.primary}
+              />
+            </Pressable>
           ) : null}
 
           <View style={styles.divider} />
@@ -277,7 +305,22 @@ export default function AjustesScreen() {
             multiline
             textAlignVertical="top"
           />
-          <SaveButton title="Guardar nota" onPress={handleSaveNote} />
+          <View style={styles.noteActions}>
+            <Button
+              title={copied ? '¡Copiado!' : 'Copiar'}
+              variant="surface"
+              onPress={handleCopyNote}
+              left={
+                <MaterialCommunityIcons
+                  name={copied ? 'check' : 'content-copy'}
+                  size={16}
+                  color={copied ? GymTheme.active : GymTheme.text}
+                />
+              }
+              style={{ flex: 1 }}
+            />
+            <SaveButton title="Guardar nota" onPress={handleSaveNote} style={{ flex: 1 }} />
+          </View>
         </View>
 
         <View style={styles.about}>
@@ -333,7 +376,16 @@ const styles = StyleSheet.create({
     borderRadius: Radius.sm,
   },
   divider: { height: 1, backgroundColor: GymTheme.border, marginVertical: Spacing.xs },
+  expandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 4,
+  },
+  expandText: { color: GymTheme.primary, fontSize: 14, fontWeight: '700' },
   corporalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  noteActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   textarea: {
     backgroundColor: GymTheme.inputBg,
     borderWidth: 1,

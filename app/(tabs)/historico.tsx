@@ -26,8 +26,11 @@ export default function HistoricoScreen() {
   );
 
   const openDay = async (day: DayWithCount) => {
+    // Cargamos los ejercicios ANTES de cambiar de nivel, para no mostrar por un
+    // frame los del día seleccionado anteriormente (flash).
+    const ex = await getDayExercises(db, day.id);
+    setExercises(ex);
     setSelectedDay(day);
-    setExercises(await getDayExercises(db, day.id));
   };
 
   // Nivel 2: ejercicios del día seleccionado

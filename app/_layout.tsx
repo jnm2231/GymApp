@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SQLiteProvider } from 'expo-sqlite';
 import 'react-native-reanimated';
 
+import { AlertProvider } from '@/components/gym/alert';
 import { Loading } from '@/components/gym/ui';
 import { GymTheme } from '@/constants/gym-theme';
 import { SessionProvider } from '@/context/session-context';
@@ -37,21 +38,23 @@ export default function RootLayout() {
           <SQLiteProvider databaseName={DATABASE_NAME} onInit={initDatabase} useSuspense>
             <SessionProvider>
               <ThemeProvider value={NavTheme}>
-                <Stack
-                  screenOptions={{
-                    headerStyle: { backgroundColor: GymTheme.background },
-                    headerTintColor: GymTheme.text,
-                    contentStyle: { backgroundColor: GymTheme.background },
-                  }}>
-                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                  <Stack.Screen
-                    name="day-form"
-                    options={{ presentation: 'modal', title: 'Día de entrenamiento' }}
-                  />
-                  <Stack.Screen name="exercise/[id]" options={{ title: 'Histórico' }} />
-                  <Stack.Screen name="day-detail/[date]" options={{ title: 'Detalle del día' }} />
-                </Stack>
-                <StatusBar style="light" />
+                <AlertProvider>
+                  <Stack
+                    screenOptions={{
+                      headerStyle: { backgroundColor: GymTheme.background },
+                      headerTintColor: GymTheme.text,
+                      contentStyle: { backgroundColor: GymTheme.background },
+                    }}>
+                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                    <Stack.Screen
+                      name="day-form"
+                      options={{ presentation: 'modal', title: 'Día de entrenamiento' }}
+                    />
+                    <Stack.Screen name="exercise/[id]" options={{ title: 'Histórico' }} />
+                    <Stack.Screen name="day-detail/[date]" options={{ title: 'Detalle del día' }} />
+                  </Stack>
+                  <StatusBar style="light" />
+                </AlertProvider>
               </ThemeProvider>
             </SessionProvider>
           </SQLiteProvider>

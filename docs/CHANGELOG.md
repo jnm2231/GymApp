@@ -35,6 +35,15 @@ que se publica en cada APK.
 - **Detalle del día: acceso directo si solo hay un tipo de día.** Al pulsar un
   día del calendario con un único tipo de día, se salta el nivel intermedio y se
   abren directamente sus ejercicios.
+- **Diálogos con estilo propio.** Los cuadros de aviso/confirmación dejan de ser
+  los blancos del sistema y pasan a usar el tema oscuro de la app (mismo estilo
+  de tarjetas y botones). Implementado con un `AlertProvider` propio y un hook
+  `useAlert()` con API similar a `Alert.alert`.
+- **Notas de desarrollo: botón «Copiar».** Copia el texto de las notas al
+  portapapeles, con confirmación breve («¡Copiado!»).
+- **Catálogo de ejercicios plegable.** Cuando hay más de 5 ejercicios, la lista
+  muestra solo los primeros con un botón «Ver todos (N) / Ver menos», para que
+  Ajustes no se haga interminable.
 
 ### 🐛 Correcciones / mejoras de usabilidad
 - **El teclado ya no tapa los campos de texto.** Al escribir las notas de
@@ -85,6 +94,13 @@ que se publica en cada APK.
     así que al volver del nivel 2 al nivel 1 se conservaba el `headerLeft`
     personalizado y la flecha del nivel 1 dejaba de llevar al calendario. Se
     resetean explícitamente `headerLeft`/`gestureEnabled` en el nivel 1.
+- **Arreglado el flash en el histórico al cambiar de tipo de día.**
+  - *Síntoma:* al entrar en un tipo de día, volver atrás y elegir otro, se veían
+    por un instante los ejercicios del tipo de día anterior.
+  - *Causa:* se cambiaba de nivel (`setSelectedDay`) antes de que terminara la
+    consulta de ejercicios, así que el nivel 2 se pintaba con la lista vieja.
+  - *Arreglo:* ahora se cargan los ejercicios **antes** de cambiar de nivel, de
+    modo que la nueva pantalla aparece ya con los datos correctos.
 
 ---
 

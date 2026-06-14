@@ -2,8 +2,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { useAlert } from '@/components/gym/alert';
 import { ExerciseBlock } from '@/components/gym/exercise-block';
 import { Button, Loading, Screen } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
@@ -29,6 +30,7 @@ import { useKeyboardHeight } from '@/lib/use-keyboard';
  */
 export function SessionView() {
   const db = useSQLiteContext();
+  const showAlert = useAlert();
   const { refresh } = useSession();
 
   const [session, setSession] = useState<Session | null>(null);
@@ -97,7 +99,7 @@ export function SessionView() {
   };
 
   const handleFinish = () => {
-    Alert.alert('Terminar sesión', '¿Finalizar y guardar el entrenamiento en el histórico?', [
+    showAlert('Terminar sesión', '¿Finalizar y guardar el entrenamiento en el histórico?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Finalizar',
@@ -110,7 +112,7 @@ export function SessionView() {
   };
 
   const handleDiscard = () => {
-    Alert.alert('Descartar sesión', 'Se borrará esta sesión sin guardarla. ¿Seguro?', [
+    showAlert('Descartar sesión', 'Se borrará esta sesión sin guardarla. ¿Seguro?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Descartar',
