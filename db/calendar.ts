@@ -74,7 +74,7 @@ export async function getDayDetail(
               weight, start_ts, end_ts
          FROM session_exercises
         WHERE session_id = ? AND start_ts IS NOT NULL
-        ORDER BY position ASC`,
+        ORDER BY start_ts ASC, position ASC`,
       [s.session_id]
     );
     const withSets: CalendarDayDetailExercise[] = [];

@@ -40,7 +40,7 @@ export interface SessionExercise {
   exercise_id: number | null;
   exercise_name: string;
   es_corporal: number;
-  weight: number | null; // PESO GLOBAL del ejercicio en la sesión (kg). Lastre si es corporal.
+  weight: number | null; // peso por defecto del ejercicio en la sesión (kg). Cada serie puede sobreescribirlo. Lastre si es corporal.
   position: number;
   is_additional: number;
   start_ts: number | null;
@@ -55,6 +55,7 @@ export interface ExerciseSet {
   reps: number;
   ts: number; // ms al confirmar el tick
   rest_seconds: number | null; // descanso respecto a la serie anterior (NULL en la 1ª)
+  weight: number | null; // peso de ESTA serie (kg). NULL = hereda el peso global del ejercicio.
 }
 
 export interface DevNote {

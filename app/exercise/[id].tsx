@@ -7,8 +7,8 @@ import { ChartPoint, LineChart } from '@/components/gym/line-chart';
 import { EmptyState, Loading } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { ExerciseHistoryEntry, getExerciseHistory } from '@/db/history';
-import { averageOneRepMax, effectiveWeight } from '@/lib/calc';
-import { formatDate, formatHM, formatRest } from '@/lib/format';
+import { averageOneRepMax } from '@/lib/calc';
+import { formatDate, formatDuration, formatHM, formatRest } from '@/lib/format';
 
 export default function ExerciseDetailScreen() {
   const db = useSQLiteContext();
@@ -34,10 +34,10 @@ export default function ExerciseDetailScreen() {
 
   if (loading) return <Loading />;
 
-  const points: ChartPoint[] = history.map((h) => {
-    const eff = effectiveWeight(h.weight ?? 0, h.es_corporal === 1, h.user_weight ?? 0);
-    return { value: averageOneRepMax(h.sets, eff), label: shortDate(h.session_start_ts) };
-  });
+  const points: ChartPoint[] = history.map((h) => ({
+    value: averageOneRepMax(h.sets, h.weight ?? 0, h.es_corporal === 1, h.user_weight ?? 0),
+    label: shortDate(h.session_start_ts),
+  }));
 
   // Registros más recientes primero.
   const records = [...history].reverse();
@@ -71,20 +71,24 @@ export default function ExerciseDetailScreen() {
 }
 
 function RecordCard({ entry, name }: { entry: ExerciseHistoryEntry; name: string }) {
-  const eff = effectiveWeight(entry.weight ?? 0, entry.es_corporal === 1, entry.user_weight ?? 0);
-  const avg = averageOneRepMax(entry.sets, eff);
+  const avg = averageOneRepMax(entry.sets, entry.weight ?? 0, entry.es_corporal === 1, entry.user_weight ?? 0);
+  // ¿Alguna serie usa un peso distinto del global? Solo entonces detallamos el peso por serie.
+  const variableWeight = entry.sets.some((s) => s.weight != null && s.weight !== entry.weight);
   return (
     <View style={styles.record}>
       <View style={styles.recordHeader}>
         <Text style={styles.recordDate}>{formatDate(entry.session_start_ts)}</Text>
         <Text style={styles.recordTime}>
           {formatHM(entry.start_ts)} - {formatHM(entry.end_ts)}
+          {entry.start_ts && entry.end_ts ? (
+            <Text style={styles.recordDuration}> · {formatDuration(entry.start_ts, entry.end_ts)}</Text>
+          ) : null}
         </Text>
       </View>
       <View style={styles.recordSubHeader}>
         <Text style={styles.recordName}>{name}</Text>
         <Text style={styles.recordWeight}>
-          {entry.weight ?? 0} kg
+          {variableWeight ? 'pesos variables' : `${entry.weight ?? 0} kg`}
           {entry.es_corporal === 1 ? ` (+${Math.round(entry.user_weight ?? 0)} corp.)` : ''}
         </Text>
       </View>
@@ -92,6 +96,9 @@ function RecordCard({ entry, name }: { entry: ExerciseHistoryEntry; name: string
         {entry.sets.map((s) => (
           <View key={s.id} style={styles.repPill}>
             <Text style={styles.repValue}>{s.reps}</Text>
+            {variableWeight ? (
+              <Text style={styles.repWeight}>{s.weight ?? entry.weight ?? 0} kg</Text>
+            ) : null}
             <Text style={styles.repRest}>{s.rest_seconds == null ? 'inicio' : formatRest(s.rest_seconds)}</Text>
           </View>
         ))}
@@ -137,6 +144,7 @@ const styles = StyleSheet.create({
   recordHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   recordDate: { color: GymTheme.text, fontSize: 15, fontWeight: '800' },
   recordTime: { color: GymTheme.textMuted, fontSize: 13 },
+  recordDuration: { color: GymTheme.primary, fontSize: 13, fontWeight: '700' },
   recordSubHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   recordName: { color: GymTheme.textMuted, fontSize: 14 },
   recordWeight: { color: GymTheme.primary, fontSize: 15, fontWeight: '800' },
@@ -150,6 +158,7 @@ const styles = StyleSheet.create({
     minWidth: 52,
   },
   repValue: { color: GymTheme.text, fontSize: 16, fontWeight: '800' },
+  repWeight: { color: GymTheme.primary, fontSize: 11, fontWeight: '700', marginTop: 1 },
   repRest: { color: GymTheme.textFaint, fontSize: 10, marginTop: 2 },
   recordAvg: { color: GymTheme.textMuted, fontSize: 12, marginTop: 2 },
 });

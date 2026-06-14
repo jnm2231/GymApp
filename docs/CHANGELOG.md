@@ -13,6 +13,29 @@ publicar una versión.
 ## v1.2.0 — 2026-06-14
 
 ### Nuevas funcionalidades
+- **Peso por serie.** El peso deja de ser únicamente global por ejercicio: cada
+  serie puede tener el suyo. Al registrar o editar una serie, junto a las
+  repeticiones se muestra el peso (con el valor global del ejercicio como
+  predeterminado) y un botón de lápiz para cambiarlo. El histórico, el detalle
+  del día y el cálculo de 1RM usan el peso real de cada serie; cuando una serie
+  no define peso, hereda el global del ejercicio.
+  - *Modelo de datos:* nueva columna `sets.weight` (NULL = hereda el global).
+    Migración de esquema v1 → v2 mediante `ALTER TABLE` idempotente, conservando
+    todos los datos existentes (las series previas quedan con `weight` NULL y se
+    comportan igual que antes). Las copias de seguridad antiguas siguen siendo
+    compatibles.
+- **Peso corporal visible en ejercicios corporales.** En los ejercicios de peso
+  corporal se muestra, en gris junto al lastre, el peso corporal que se
+  contabiliza para ese ejercicio. Es el `user_weight` «fotografiado» en la
+  sesión (no editable), de modo que el cálculo histórico no cambia aunque luego
+  se modifique el peso del perfil.
+- **Duración total en el histórico.** En cada registro del histórico de un
+  ejercicio, junto a la hora de inicio y fin, se muestra el tiempo total de
+  realización del ejercicio.
+- **Ejercicios por orden de realización.** En el detalle de una jornada (al
+  abrir un día desde el calendario), los ejercicios se ordenan por su hora de
+  inicio real (primero arriba, último abajo) en lugar de por su posición en la
+  plantilla del día.
 - **Historial de versiones.** Nueva pantalla accesible desde Ajustes que recoge
   las notas de cada versión, organizadas en los apartados «Nuevas
   funcionalidades» y «Solución de errores». El contenido se centraliza en

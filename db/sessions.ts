@@ -101,7 +101,8 @@ export async function setExerciseWeight(
 export async function addSet(
   db: SQLiteDatabase,
   sessionExerciseId: number,
-  reps: number
+  reps: number,
+  weight: number | null = null
 ): Promise<ExerciseSet> {
   const now = Date.now();
   const prev = await db.getFirstAsync<ExerciseSet>(
@@ -113,9 +114,9 @@ export async function addSet(
   const rest = prev ? Math.round((now - prev.ts) / 1000) : null;
 
   const res = await db.runAsync(
-    `INSERT INTO sets (session_exercise_id, set_index, reps, ts, rest_seconds)
-     VALUES (?, ?, ?, ?, ?)`,
-    [sessionExerciseId, setIndex, reps, now, rest]
+    `INSERT INTO sets (session_exercise_id, set_index, reps, ts, rest_seconds, weight)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [sessionExerciseId, setIndex, reps, now, rest, weight]
   );
 
   // La primera serie marca el inicio del ejercicio y lo activa.
@@ -126,7 +127,15 @@ export async function addSet(
     );
   }
 
-  return { id: res.lastInsertRowId, session_exercise_id: sessionExerciseId, set_index: setIndex, reps, ts: now, rest_seconds: rest };
+  return {
+    id: res.lastInsertRowId,
+    session_exercise_id: sessionExerciseId,
+    set_index: setIndex,
+    reps,
+    ts: now,
+    rest_seconds: rest,
+    weight,
+  };
 }
 
 /** Edita las repeticiones de una serie SIN tocar timestamps ni descansos. */
@@ -136,6 +145,18 @@ export async function updateSetReps(
   reps: number
 ): Promise<void> {
   await db.runAsync('UPDATE sets SET reps = ? WHERE id = ?', [reps, setId]);
+}
+
+/**
+ * Edita el peso de UNA serie. `weight` NULL hace que la serie vuelva a heredar el
+ * peso global del ejercicio. No toca timestamps ni descansos.
+ */
+export async function updateSetWeight(
+  db: SQLiteDatabase,
+  setId: number,
+  weight: number | null
+): Promise<void> {
+  await db.runAsync('UPDATE sets SET weight = ? WHERE id = ?', [weight, setId]);
 }
 
 export async function deleteSet(db: SQLiteDatabase, setId: number): Promise<void> {

@@ -206,6 +206,7 @@ export function SessionView() {
               block={b}
               isCurrent={b.id === focusedId}
               sessionId={session.id}
+              sessionUserWeight={session.user_weight}
               onChanged={load}
               onOpenHistory={(exId) => router.push({ pathname: '/exercise/[id]', params: { id: String(exId) } })}
               onFocus={() => setFocusedId(b.id)}

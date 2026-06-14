@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
@@ -10,6 +10,7 @@ import {
   finishExercise,
   setExerciseWeight,
   updateSetReps,
+  updateSetWeight,
 } from '@/db/sessions';
 import type { SessionExerciseWithSets } from '@/db/types';
 import { formatClock, formatHM, formatRest, repsSummary } from '@/lib/format';
@@ -18,12 +19,79 @@ interface Props {
   block: SessionExerciseWithSets;
   isCurrent: boolean;
   sessionId: number;
+  sessionUserWeight: number | null; // snapshot del peso del usuario en esta sesión
   onChanged: () => Promise<void>;
   onOpenHistory: (exerciseId: number) => void;
   onFocus: () => void; // pasar a realizar este ejercicio (ponerlo en verde)
   onPostpone: () => void; // posponer el ejercicio activo y elegir otro
   canFocus: boolean; // false cuando ya hay otro ejercicio en curso
   onRepsFocus?: () => void; // el input de repes recibe el foco (para subir el scroll)
+}
+
+/**
+ * Celda de peso de una serie. En modo lectura muestra "{w} kg" con un lápiz; al
+ * pulsarlo se convierte en un input con tick para confirmar. Si no es editable
+ * (bloque ya terminado, etc.) solo muestra el texto.
+ */
+function WeightCell({
+  weight,
+  editable,
+  onSave,
+}: {
+  weight: number;
+  editable: boolean;
+  onSave: (w: number) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [input, setInput] = useState(String(weight));
+  const savedRef = useRef(false);
+
+  if (!editable) {
+    return <Text style={styles.setWeightText}>{weight} kg</Text>;
+  }
+
+  if (editing) {
+    const save = () => {
+      if (savedRef.current) return; // evita doble guardado (submit + blur)
+      savedRef.current = true;
+      const n = parseFloat(input.replace(',', '.'));
+      setEditing(false);
+      if (Number.isFinite(n)) onSave(n);
+    };
+    return (
+      <View style={styles.setWeightEdit}>
+        <TextInput
+          style={styles.setWeightInput}
+          value={input}
+          onChangeText={setInput}
+          keyboardType="decimal-pad"
+          autoFocus
+          selectTextOnFocus
+          onSubmitEditing={save}
+          onBlur={save}
+          returnKeyType="done"
+        />
+        <Text style={styles.kgSmall}>kg</Text>
+        <Pressable style={styles.miniTick} onPress={save} hitSlop={6}>
+          <MaterialCommunityIcons name="check" size={14} color="#06210F" />
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <Pressable
+      style={styles.setWeightRead}
+      hitSlop={6}
+      onPress={() => {
+        setInput(String(weight));
+        savedRef.current = false;
+        setEditing(true);
+      }}>
+      <Text style={styles.setWeightText}>{weight} kg</Text>
+      <MaterialCommunityIcons name="pencil" size={12} color={GymTheme.textMuted} />
+    </Pressable>
+  );
 }
 
 /** Cronómetro en vivo del descanso: cuenta desde la última serie confirmada. */
@@ -47,6 +115,7 @@ export function ExerciseBlock({
   block,
   isCurrent,
   sessionId,
+  sessionUserWeight,
   onChanged,
   onOpenHistory,
   onFocus,
@@ -61,8 +130,16 @@ export function ExerciseBlock({
   const [weightInput, setWeightInput] = useState(block.weight != null ? String(block.weight) : '');
   const [weightEditing, setWeightEditing] = useState(block.weight == null);
   const [repsInput, setRepsInput] = useState('');
+  // Peso de la PRÓXIMA serie a registrar. Por defecto el peso global del ejercicio;
+  // el usuario puede sobreescribirlo antes de confirmar la serie.
+  const [newSetWeight, setNewSetWeight] = useState<number | null>(block.weight);
   const [editing, setEditing] = useState(false); // modo edición de un bloque terminado
   const [ref, setRef] = useState<{ weight: number | null; reps: number[] } | null>(null);
+
+  // Si cambia el peso global del ejercicio, la próxima serie vuelve a ese valor.
+  useEffect(() => {
+    setNewSetWeight(block.weight);
+  }, [block.weight]);
 
   // Referencia del último día que se hizo este ejercicio.
   useEffect(() => {
@@ -90,8 +167,17 @@ export function ExerciseBlock({
   const confirmSet = async () => {
     const reps = parseInt(repsInput, 10);
     if (!Number.isInteger(reps) || reps <= 0) return;
-    await addSet(db, block.id, reps);
+    // Guarda NULL (hereda global) si el peso coincide con el global; si no, el valor.
+    const stored = block.weight != null && newSetWeight === block.weight ? null : newSetWeight;
+    await addSet(db, block.id, reps, stored);
     setRepsInput('');
+    setNewSetWeight(block.weight); // siguiente serie vuelve al peso global por defecto
+    await onChanged();
+  };
+
+  const saveSetWeight = async (setId: number, w: number) => {
+    const stored = block.weight != null && w === block.weight ? null : w;
+    await updateSetWeight(db, setId, stored);
     await onChanged();
   };
 
@@ -165,7 +251,8 @@ export function ExerciseBlock({
           )}
         </View>
 
-        {/* Peso global */}
+        {/* Peso (lastre) + peso corporal en gris si es un ejercicio corporal */}
+        <View style={styles.weightArea}>
         {interactive && weightEditing ? (
           <View style={styles.weightInputWrap}>
             <TextInput
@@ -195,6 +282,10 @@ export function ExerciseBlock({
             ) : null}
           </Pressable>
         )}
+          {block.es_corporal === 1 ? (
+            <Text style={styles.corpNote}>+ {Math.round(sessionUserWeight ?? 0)} kg corporal</Text>
+          ) : null}
+        </View>
       </View>
 
       {/* Series */}
@@ -220,8 +311,13 @@ export function ExerciseBlock({
                 ) : (
                   <Text style={styles.setReps}>{s.reps} reps</Text>
                 )}
+                <WeightCell
+                  weight={s.weight ?? block.weight ?? 0}
+                  editable={interactive}
+                  onSave={(w) => saveSetWeight(s.id, w)}
+                />
                 <Text style={styles.setRest}>
-                  {s.rest_seconds == null ? '—' : `descanso ${formatRest(s.rest_seconds)}`}
+                  {s.rest_seconds == null ? '—' : formatRest(s.rest_seconds)}
                 </Text>
               </View>
             ))}
@@ -246,6 +342,12 @@ export function ExerciseBlock({
                   onFocus={onRepsFocus}
                   returnKeyType="done"
                 />
+                <WeightCell
+                  weight={newSetWeight ?? block.weight ?? 0}
+                  editable
+                  onSave={(w) => setNewSetWeight(w)}
+                />
+                <View style={{ flex: 1 }} />
                 <Pressable
                   style={[styles.tick, !repsInput && styles.tickDisabled]}
                   onPress={confirmSet}
@@ -358,6 +460,8 @@ const styles = StyleSheet.create({
     borderRadius: Radius.sm,
   },
   times: { color: GymTheme.textMuted, fontSize: 12, marginTop: 4 },
+  weightArea: { alignItems: 'flex-end', gap: 2 },
+  corpNote: { color: GymTheme.textFaint, fontSize: 11, fontWeight: '600' },
   weightInputWrap: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   weightInput: {
     backgroundColor: GymTheme.inputBg,
@@ -377,19 +481,51 @@ const styles = StyleSheet.create({
   collapsed: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   collapsedReps: { color: GymTheme.text, fontSize: 18, fontWeight: '700', letterSpacing: 1 },
   setsWrap: { gap: Spacing.sm },
-  setRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  setRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   newSetRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
+    gap: Spacing.sm,
     marginTop: Spacing.xs,
     paddingTop: Spacing.sm,
     borderTopWidth: 1,
     borderTopColor: GymTheme.border,
   },
-  setIndex: { color: GymTheme.textMuted, fontSize: 14, width: 64, fontWeight: '600' },
-  setReps: { color: GymTheme.text, fontSize: 15, fontWeight: '700', width: 70 },
-  setRest: { color: GymTheme.textFaint, fontSize: 12, flex: 1 },
+  setIndex: { color: GymTheme.textMuted, fontSize: 14, width: 52, fontWeight: '600' },
+  setReps: { color: GymTheme.text, fontSize: 15, fontWeight: '700', width: 56 },
+  setRest: { color: GymTheme.textFaint, fontSize: 12, flex: 1, textAlign: 'right' },
+  setWeightText: { color: GymTheme.text, fontSize: 14, fontWeight: '700' },
+  setWeightRead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: Radius.sm,
+    backgroundColor: GymTheme.surfaceAlt,
+  },
+  setWeightEdit: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  setWeightInput: {
+    backgroundColor: GymTheme.inputBg,
+    borderWidth: 1,
+    borderColor: GymTheme.primary,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    color: GymTheme.text,
+    fontSize: 14,
+    width: 50,
+    textAlign: 'center',
+  },
+  kgSmall: { color: GymTheme.textMuted, fontSize: 12, fontWeight: '600' },
+  miniTick: {
+    backgroundColor: GymTheme.active,
+    borderRadius: Radius.sm,
+    width: 26,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   repsEdit: {
     backgroundColor: GymTheme.inputBg,
     borderWidth: 1,
@@ -410,7 +546,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     color: GymTheme.text,
     fontSize: 15,
-    flex: 1,
+    width: 72,
     textAlign: 'center',
   },
   tick: {

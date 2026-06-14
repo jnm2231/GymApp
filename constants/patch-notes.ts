@@ -34,6 +34,26 @@ export const PATCH_NOTES: VersionNotes[] = [
     date: '2026-06-14',
     features: [
       {
+        title: 'Peso por serie',
+        detail:
+          'Cada serie puede tener su propio peso. Al registrar o editar una serie, junto a las repeticiones aparece el peso (con el valor global del ejercicio por defecto) y un botón de lápiz para cambiarlo. El histórico y el 1RM tienen en cuenta el peso de cada serie.',
+      },
+      {
+        title: 'Peso corporal visible en ejercicios corporales',
+        detail:
+          'En los ejercicios de peso corporal se muestra, en gris junto al lastre, el peso corporal que se contabiliza para ese ejercicio. Es el peso del usuario guardado en el momento de la sesión y no se puede modificar.',
+      },
+      {
+        title: 'Duración total en el histórico',
+        detail:
+          'En cada registro del histórico de un ejercicio, junto a la hora de inicio y fin, se muestra el tiempo total de realización.',
+      },
+      {
+        title: 'Ejercicios por orden de realización',
+        detail:
+          'En el detalle de una jornada (al abrir un día desde el calendario), los ejercicios se ordenan por orden de realización —el primero realizado arriba y el último abajo— en lugar de por su posición en la plantilla del día.',
+      },
+      {
         title: 'Historial de versiones',
         detail:
           'Nueva pantalla accesible desde Ajustes que recoge las notas de cada versión, organizadas en «Nuevas funcionalidades» y «Solución de errores».',

@@ -3,14 +3,16 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 /**
  * Versión del esquema. Se guarda con PRAGMA user_version para futuras migraciones.
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /**
  * Definición de tablas (Paso 1).
  *
  * Decisiones de diseño clave:
- * - El PESO es GLOBAL por ejercicio dentro de una sesión: se guarda en
- *   `session_exercises.weight`, NO en cada serie (`sets`).
+ * - El PESO tiene un valor por defecto GLOBAL por ejercicio dentro de una sesión
+ *   (`session_exercises.weight`), pero cada serie puede sobreescribirlo
+ *   (`sets.weight`). Si `sets.weight` es NULL, la serie hereda el peso global del
+ *   ejercicio. (v2)
  * - Cada serie guarda su timestamp (`ts`) y el descanso calculado respecto a la
  *   serie inmediatamente anterior (`rest_seconds`). La primera serie no tiene
  *   descanso (NULL).
@@ -79,7 +81,8 @@ CREATE TABLE IF NOT EXISTS session_exercises (
   FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE SET NULL
 );
 
--- Series: repeticiones + timestamp + descanso calculado (sin peso, es global)
+-- Series: repeticiones + timestamp + descanso calculado.
+-- weight (v2): peso de ESA serie. NULL = hereda el peso global del ejercicio.
 CREATE TABLE IF NOT EXISTS sets (
   id                  INTEGER PRIMARY KEY AUTOINCREMENT,
   session_exercise_id INTEGER NOT NULL,
@@ -87,6 +90,7 @@ CREATE TABLE IF NOT EXISTS sets (
   reps                INTEGER NOT NULL,
   ts                  INTEGER NOT NULL,
   rest_seconds        INTEGER,
+  weight              REAL,
   FOREIGN KEY (session_exercise_id) REFERENCES session_exercises(id) ON DELETE CASCADE
 );
 
@@ -124,7 +128,15 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
   const current = row?.user_version ?? 0;
 
   if (current < SCHEMA_VERSION) {
-    // (Futuras migraciones incrementales irían aquí.)
+    // Migración v1 -> v2: peso por serie. En instalaciones existentes la tabla
+    // `sets` ya existe sin la columna `weight`, así que la añadimos con ALTER
+    // (idempotente: solo si aún no está). Los datos previos quedan con NULL =
+    // hereda el peso global, preservando el comportamiento anterior.
+    const setsCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(sets)');
+    if (!setsCols.some((c) => c.name === 'weight')) {
+      await db.execAsync('ALTER TABLE sets ADD COLUMN weight REAL');
+    }
+
     await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   }
 

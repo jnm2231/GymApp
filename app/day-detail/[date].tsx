@@ -85,7 +85,9 @@ export default function DayDetailScreen() {
             </Text>
           </View>
 
-          {selected.exercises.map((ex) => (
+          {selected.exercises.map((ex) => {
+            const variableWeight = ex.sets.some((s) => s.weight != null && s.weight !== ex.weight);
+            return (
             <Pressable
               key={ex.session_exercise_id}
               style={styles.exCard}
@@ -96,7 +98,7 @@ export default function DayDetailScreen() {
               }>
               <View style={styles.exHeader}>
                 <Text style={styles.exName}>{ex.exercise_name}</Text>
-                <Text style={styles.exWeight}>{ex.weight ?? 0} kg</Text>
+                <Text style={styles.exWeight}>{variableWeight ? 'pesos variables' : `${ex.weight ?? 0} kg`}</Text>
               </View>
               <Text style={styles.exTimes}>
                 ({formatHM(ex.start_ts)} - {formatHM(ex.end_ts)})
@@ -105,6 +107,9 @@ export default function DayDetailScreen() {
                 {ex.sets.map((s) => (
                   <View key={s.id} style={styles.repPill}>
                     <Text style={styles.repValue}>{s.reps}</Text>
+                    {variableWeight ? (
+                      <Text style={styles.repWeight}>{s.weight ?? ex.weight ?? 0} kg</Text>
+                    ) : null}
                     <Text style={styles.repRest}>
                       {s.rest_seconds == null ? 'inicio' : formatRest(s.rest_seconds)}
                     </Text>
@@ -118,7 +123,8 @@ export default function DayDetailScreen() {
                 </View>
               ) : null}
             </Pressable>
-          ))}
+            );
+          })}
         </ScrollView>
       </>
     );
@@ -212,6 +218,7 @@ const styles = StyleSheet.create({
     minWidth: 52,
   },
   repValue: { color: GymTheme.text, fontSize: 16, fontWeight: '800' },
+  repWeight: { color: GymTheme.primary, fontSize: 11, fontWeight: '700', marginTop: 1 },
   repRest: { color: GymTheme.textFaint, fontSize: 10, marginTop: 2 },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
   linkText: { color: GymTheme.primary, fontSize: 12, fontWeight: '700' },
