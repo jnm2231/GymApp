@@ -46,7 +46,7 @@ export default function DayDetailScreen() {
           </Pressable>
 
           <View style={styles.blockHeader}>
-            <Text style={styles.blockTitle}>Bloque {selected.day_name.toUpperCase()}</Text>
+            <Text style={styles.blockTitle}>{selected.day_name}</Text>
             <Text style={styles.blockTime}>
               {formatHM(selected.start_ts)} - {formatHM(selected.end_ts)}
             </Text>
@@ -105,7 +105,7 @@ export default function DayDetailScreen() {
                 <MaterialCommunityIcons name="dumbbell" size={22} color={GymTheme.primary} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.dayBlockTitle}>Bloque {b.day_name.toUpperCase()}</Text>
+                <Text style={styles.dayBlockTitle}>{b.day_name}</Text>
                 <Text style={styles.dayBlockTime}>
                   {formatHM(b.start_ts)} - {formatHM(b.end_ts)} · {b.exercises.length}{' '}
                   {b.exercises.length === 1 ? 'ejercicio' : 'ejercicios'}
