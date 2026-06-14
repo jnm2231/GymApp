@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { SaveButton } from '@/components/gym/save-button';
 import { Button, ScreenTitle } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { useSession } from '@/context/session-context';
@@ -170,7 +171,7 @@ export default function AjustesScreen() {
               returnKeyType="done"
             />
             <Text style={styles.unit}>kg</Text>
-            <Button title="Guardar" variant="surface" onPress={handleSaveWeight} style={{ flex: 1 }} />
+            <SaveButton title="Guardar" onPress={handleSaveWeight} style={{ flex: 1 }} />
           </View>
         </View>
 
@@ -276,14 +277,17 @@ export default function AjustesScreen() {
             multiline
             textAlignVertical="top"
           />
-          <Button title="Guardar nota" variant="surface" onPress={handleSaveNote} />
+          <SaveButton title="Guardar nota" onPress={handleSaveNote} />
         </View>
 
-        <View style={styles.aboutRow}>
-          <Ionicons name="barbell" size={16} color={GymTheme.textFaint} />
-          <Text style={styles.version}>
-            GymApp v{Constants.expoConfig?.version ?? '1.0.0'} · datos sólo en este dispositivo
-          </Text>
+        <View style={styles.about}>
+          <View style={styles.aboutRow}>
+            <Ionicons name="barbell" size={16} color={GymTheme.textFaint} />
+            <Text style={styles.version}>
+              GymApp v{Constants.expoConfig?.version ?? '1.0.0'} · datos sólo en este dispositivo
+            </Text>
+          </View>
+          <Text style={styles.author}>Creado por jnm2231</Text>
         </View>
       </ScrollView>
     </View>
@@ -340,6 +344,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     minHeight: 120,
   },
+  about: { alignItems: 'center', gap: 4 },
   aboutRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
   version: { color: GymTheme.textFaint, fontSize: 12, textAlign: 'center' },
+  author: { color: GymTheme.textMuted, fontSize: 13, fontWeight: '700', letterSpacing: 0.3 },
 });
