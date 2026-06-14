@@ -8,7 +8,7 @@ que se publica en cada APK.
 
 ---
 
-## v1.1.0 — (en desarrollo)
+## v1.1.0 — 2026-06-14
 
 ### ✨ Nuevo
 - **Temporizador de descanso en vivo.** En el ejercicio activo, tras confirmar

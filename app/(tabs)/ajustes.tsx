@@ -314,7 +314,7 @@ export default function AjustesScreen() {
           <View style={styles.aboutRow}>
             <Ionicons name="barbell" size={16} color={GymTheme.textFaint} />
             <Text style={styles.version}>
-              GymApp v{Constants.expoConfig?.version ?? '1.0.0'} · datos sólo en este dispositivo
+              GymApp v{Constants.expoConfig?.version ?? '1.1.0'} · datos sólo en este dispositivo
             </Text>
           </View>
           <Text style={styles.author}>Creado por jnm2231</Text>
