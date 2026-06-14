@@ -29,9 +29,11 @@ publicar una versión.
   contabiliza para ese ejercicio. Es el `user_weight` «fotografiado» en la
   sesión (no editable), de modo que el cálculo histórico no cambia aunque luego
   se modifique el peso del perfil.
-- **Duración total en el histórico.** En cada registro del histórico de un
-  ejercicio, junto a la hora de inicio y fin, se muestra el tiempo total de
-  realización del ejercicio.
+- **Duración total del entrenamiento.** En el detalle de una jornada
+  (calendario → día → tipo de día), la cabecera muestra la duración total de la
+  sesión junto al nombre del tipo de día y la hora de inicio/fin. Además, cada
+  registro del histórico de un ejercicio muestra el tiempo total de realización
+  junto a su hora de inicio y fin.
 - **Ejercicios por orden de realización.** En el detalle de una jornada (al
   abrir un día desde el calendario), los ejercicios se ordenan por su hora de
   inicio real (primero arriba, último abajo) en lugar de por su posición en la

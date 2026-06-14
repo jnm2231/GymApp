@@ -7,7 +7,7 @@ import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'reac
 import { EmptyState, Loading } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { CalendarDayBlock, getDayDetail } from '@/db/calendar';
-import { formatDate, formatHM, formatRest } from '@/lib/format';
+import { formatDate, formatDuration, formatHM, formatRest } from '@/lib/format';
 
 export default function DayDetailScreen() {
   const db = useSQLiteContext();
@@ -81,6 +81,8 @@ export default function DayDetailScreen() {
           <View style={styles.blockHeader}>
             <Text style={styles.blockTitle}>{selected.day_name}</Text>
             <Text style={styles.blockTime}>
+              <Text style={styles.blockDuration}>{formatDuration(selected.start_ts, selected.end_ts)}</Text>
+              {'  ·  '}
               {formatHM(selected.start_ts)} - {formatHM(selected.end_ts)}
             </Text>
           </View>
@@ -174,8 +176,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.sm,
   },
-  blockTitle: { color: GymTheme.text, fontSize: 20, fontWeight: '800' },
-  blockTime: { color: GymTheme.textMuted, fontSize: 14 },
+  blockTitle: { color: GymTheme.text, fontSize: 20, fontWeight: '800', flexShrink: 1 },
+  blockTime: { color: GymTheme.textMuted, fontSize: 14, marginLeft: Spacing.sm },
+  blockDuration: { color: GymTheme.primary, fontWeight: '800' },
   dayBlock: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -44,9 +44,9 @@ export const PATCH_NOTES: VersionNotes[] = [
           'En los ejercicios de peso corporal se muestra, en gris junto al lastre, el peso corporal que se contabiliza para ese ejercicio. Es el peso del usuario guardado en el momento de la sesión y no se puede modificar.',
       },
       {
-        title: 'Duración total en el histórico',
+        title: 'Duración total del entrenamiento',
         detail:
-          'En cada registro del histórico de un ejercicio, junto a la hora de inicio y fin, se muestra el tiempo total de realización.',
+          'En el detalle de una jornada (calendario → día → tipo de día), la cabecera muestra la duración total de la sesión junto al nombre y la hora de inicio/fin. Además, cada registro del histórico de un ejercicio muestra el tiempo total de realización junto a su hora de inicio y fin.',
       },
       {
         title: 'Ejercicios por orden de realización',
