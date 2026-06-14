@@ -21,6 +21,13 @@ que se publica en cada APK.
   desvanece «explotando».
 - **Autoría en Ajustes.** El pie de la pantalla de Ajustes muestra
   «Creado por jnm2231».
+- **Calendario: swipe interactivo.** El arrastre sigue al dedo mostrando el mes
+  adyacente en tiempo real; si no se supera el umbral (o se mantiene el dedo), el
+  mes vuelve a su sitio sin cambiar. Se cargan los tres meses visibles (anterior,
+  actual y siguiente) en una sola consulta para que la transición sea fluida.
+- **Calendario: rediseño visual.** Cada día es ahora una celda redondeada tipo
+  «tile» con su propia separación, los días con entreno se tiñen sutilmente y el
+  día de hoy se resalta con el número dentro de un círculo naranja.
 
 ### 🐛 Correcciones / mejoras de usabilidad
 - **El teclado ya no tapa los campos de texto.** Al escribir las notas de
@@ -31,10 +38,25 @@ que se publica en cada APK.
   `.wasm` y cabeceras COOP/COEP, necesarios para `expo-sqlite` en web. El error
   «Unable to resolve module ./wa-sqlite/wa-sqlite.wasm» ya no aparece (solo
   afectaba al bundle web, no al móvil).
-
-### 🔜 Pendiente en esta versión (siguiente tanda)
-- Swipe del calendario más suave (arrastre que sigue al dedo, sin saltos bruscos).
-- Rediseño estético del calendario (bordes/celdas más cuidadas).
+- **Arreglado el "flashazo" del calendario al cambiar de mes.**
+  - *Síntoma:* al terminar el swipe entre meses, durante una fracción de segundo
+    se veía centrado el mes anterior (o un mes equivocado) antes de asentarse el
+    nuevo.
+  - *Causa:* el pager casero tenía 3 paneles `[anterior][actual][siguiente]` que
+    se **reciclaban**: al confirmar el cambio se hacían a la vez el `setState`
+    del mes nuevo (re-render **asíncrono** de React) y el recentrado del carril
+    (`translateX`, en el hilo de UI). En React Native el render cruza el puente
+    de forma asíncrona, así que ese recentrado nunca queda perfectamente
+    sincronizado con el repintado nativo y se colaba un frame con el mes
+    incorrecto centrado. Un primer intento con `useLayoutEffect` redujo el flash
+    pero no lo eliminó (la sincronía JS↔UI sigue sin estar garantizada).
+  - *Arreglo:* se eliminó el reciclado de paneles. El calendario pasa a usar una
+    **`FlatList` horizontal con `pagingEnabled`** y páginas de meses **reales**
+    (±5 años). El paginado, el arrastre que sigue al dedo y el *snap* (volver si
+    no se pasa la mitad) los hace el sistema de forma nativa, y como ya **no se
+    recoloca nada**, no existe ningún frame intermedio que pueda parpadear. Los
+    meses cargan sus sesiones de forma incremental al desplazarse y se acumulan
+    en memoria.
 
 ---
 
