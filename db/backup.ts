@@ -8,6 +8,7 @@ import { SCHEMA_VERSION } from './schema';
  */
 const BACKUP_TABLES = [
   'settings',
+  'body_measurements',
   'exercises',
   'days',
   'day_exercises',

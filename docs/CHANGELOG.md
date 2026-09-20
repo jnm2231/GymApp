@@ -20,6 +20,10 @@ publicar una versión.
   ejercicios realizados, excluye los que nunca se han entrenado y permite
   ordenarlos por nombre, número de veces realizado o mejor 1RM. Cada histórico
   individual indica también cuántas veces se realizó el ejercicio.
+- **Registro corporal.** Ajustes permite registrar peso con histórico, altura y
+  fecha de nacimiento, calculando la edad automáticamente. Se puede activar un
+  recordatorio semanal que se reinicia siete días después de cada nuevo peso.
+  - *Modelo de datos:* nueva tabla `body_measurements` y esquema v3.
 
 ### Solución de errores
 - Sin correcciones en esta versión.

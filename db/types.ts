@@ -65,6 +65,12 @@ export interface DevNote {
   updated_at: number;
 }
 
+export interface BodyMeasurement {
+  id: number;
+  weight: number;
+  recorded_at: number;
+}
+
 // Tipos compuestos para la UI
 export interface DayWithCount extends Day {
   exercise_count: number;

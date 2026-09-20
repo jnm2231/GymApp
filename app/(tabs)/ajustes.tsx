@@ -23,14 +23,26 @@ import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { CURRENT_VERSION } from '@/constants/patch-notes';
 import { useSession } from '@/context/session-context';
 import {
+  getBodyProfile,
+  listBodyMeasurements,
+  recordBodyWeight,
+  saveBodyProfile,
+  setWeeklyWeightReminder,
+} from '@/db/body';
+import {
   createExercise,
   deleteExercise,
   listExercises,
 } from '@/db/exercises';
 import { getDevNote, saveDevNote } from '@/db/notes';
-import { getUserWeight, setUserWeight } from '@/db/settings';
-import type { Exercise } from '@/db/types';
+import type { BodyMeasurement, Exercise } from '@/db/types';
 import { exportBackup, importBackup } from '@/lib/backup-io';
+import {
+  disableWeeklyWeightReminder,
+  ensureWeeklyWeightReminder,
+  scheduleWeeklyWeightReminder,
+} from '@/lib/body-notifications';
+import { formatDate } from '@/lib/format';
 import { useKeyboardHeight } from '@/lib/use-keyboard';
 
 const CATALOG_PREVIEW = 5; // ejercicios visibles antes de "Ver todos"
@@ -44,6 +56,10 @@ export default function AjustesScreen() {
   const keyboardHeight = useKeyboardHeight();
 
   const [weight, setWeight] = useState('');
+  const [height, setHeight] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [weeklyWeightReminder, setWeeklyWeightReminderState] = useState(false);
+  const [measurements, setMeasurements] = useState<BodyMeasurement[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [catalogExpanded, setCatalogExpanded] = useState(false);
   const [newName, setNewName] = useState('');
@@ -52,11 +68,20 @@ export default function AjustesScreen() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const w = await getUserWeight(db);
-    setWeight(w ? String(w) : '');
-    setExercises(await listExercises(db));
-    const devNote = await getDevNote(db);
+    const [profile, nextMeasurements, nextExercises, devNote] = await Promise.all([
+      getBodyProfile(db),
+      listBodyMeasurements(db),
+      listExercises(db),
+      getDevNote(db),
+    ]);
+    setWeight(profile.weight ? String(profile.weight) : '');
+    setHeight(profile.heightCm == null ? '' : String(profile.heightCm));
+    setBirthDate(profile.birthDate ? isoToDisplayDate(profile.birthDate) : '');
+    setWeeklyWeightReminderState(profile.weeklyWeightReminder);
+    setMeasurements(nextMeasurements);
+    setExercises(nextExercises);
     setNote(devNote?.content ?? '');
+    if (profile.weeklyWeightReminder) void ensureWeeklyWeightReminder();
   }, [db]);
 
   useFocusEffect(
@@ -67,7 +92,35 @@ export default function AjustesScreen() {
 
   const handleSaveWeight = async () => {
     const n = parseFloat(weight.replace(',', '.'));
-    await setUserWeight(db, Number.isFinite(n) ? n : 0);
+    if (!Number.isFinite(n) || n <= 0) {
+      showAlert('Peso no válido', 'Introduce un peso mayor que cero.');
+      return;
+    }
+    await recordBodyWeight(db, n);
+    if (weeklyWeightReminder) await scheduleWeeklyWeightReminder();
+    await load();
+  };
+
+  const handleSaveBodyProfile = async () => {
+    const heightCm = parseFloat(height.replace(',', '.'));
+    if (height.trim() && (!Number.isFinite(heightCm) || heightCm <= 0)) {
+      showAlert('Altura no válida', 'Introduce la altura en centímetros.');
+      return;
+    }
+    const birthDateIso = birthDate.trim() ? displayDateToIso(birthDate) : null;
+    if (birthDate.trim() && !birthDateIso) {
+      showAlert('Fecha no válida', 'Usa el formato DD/MM/AAAA.');
+      return;
+    }
+    await saveBodyProfile(db, height.trim() ? heightCm : null, birthDateIso);
+    await load();
+  };
+
+  const handleWeeklyReminderChange = async (enabled: boolean) => {
+    setWeeklyWeightReminderState(enabled);
+    await setWeeklyWeightReminder(db, enabled);
+    if (enabled) await scheduleWeeklyWeightReminder();
+    else await disableWeeklyWeightReminder();
   };
 
   const handleAddExercise = async () => {
@@ -170,10 +223,12 @@ export default function AjustesScreen() {
 
         {/* Perfil */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Perfil</Text>
+          <Text style={styles.cardTitle}>Registro corporal</Text>
           <Text style={styles.cardSub}>
-            Tu peso corporal se usa en los cálculos de fuerza (1RM) de los ejercicios corporales.
+            Registra tu peso, altura y fecha de nacimiento. El peso se usa en el 1RM de los ejercicios
+            corporales.
           </Text>
+          <Text style={styles.fieldLabel}>Peso actual</Text>
           <View style={styles.weightRow}>
             <TextInput
               style={styles.input}
@@ -182,13 +237,70 @@ export default function AjustesScreen() {
               keyboardType="decimal-pad"
               value={weight}
               onChangeText={setWeight}
-              onBlur={handleSaveWeight}
               onSubmitEditing={handleSaveWeight}
               returnKeyType="done"
             />
             <Text style={styles.unit}>kg</Text>
-            <SaveButton title="Guardar" onPress={handleSaveWeight} style={{ flex: 1 }} />
+            <SaveButton title="Registrar" onPress={handleSaveWeight} style={{ flex: 1 }} />
           </View>
+
+          <View style={styles.profileGrid}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.fieldLabel}>Altura</Text>
+              <View style={styles.compactField}>
+                <TextInput
+                  style={[styles.input, { flex: 1, minWidth: 0 }]}
+                  placeholder="175"
+                  placeholderTextColor={GymTheme.textFaint}
+                  keyboardType="decimal-pad"
+                  value={height}
+                  onChangeText={setHeight}
+                />
+                <Text style={styles.unit}>cm</Text>
+              </View>
+            </View>
+            <View style={{ flex: 1.4 }}>
+              <Text style={styles.fieldLabel}>Fecha de nacimiento</Text>
+              <TextInput
+                style={[styles.input, { width: '100%' }]}
+                placeholder="DD/MM/AAAA"
+                placeholderTextColor={GymTheme.textFaint}
+                keyboardType="number-pad"
+                value={birthDate}
+                onChangeText={setBirthDate}
+                maxLength={10}
+              />
+            </View>
+          </View>
+          {displayDateToIso(birthDate) ? (
+            <Text style={styles.ageText}>Edad actual: {ageFromIso(displayDateToIso(birthDate)!)} años</Text>
+          ) : null}
+          <SaveButton title="Guardar perfil" onPress={handleSaveBodyProfile} />
+
+          <View style={styles.reminderRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.reminderTitle}>Recordatorio semanal de peso</Text>
+              <Text style={styles.cardSub}>Avisa siete días después del último registro.</Text>
+            </View>
+            <Switch
+              value={weeklyWeightReminder}
+              onValueChange={handleWeeklyReminderChange}
+              trackColor={{ true: GymTheme.primary, false: GymTheme.disabled }}
+              thumbColor={GymTheme.white}
+            />
+          </View>
+
+          {measurements.length > 0 ? (
+            <View style={styles.measurements}>
+              <Text style={styles.fieldLabel}>Últimos registros</Text>
+              {measurements.map((measurement) => (
+                <View key={measurement.id} style={styles.measurementRow}>
+                  <Text style={styles.measurementDate}>{formatDate(measurement.recorded_at)}</Text>
+                  <Text style={styles.measurementWeight}>{measurement.weight} kg</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </View>
 
         {/* Catálogo de ejercicios */}
@@ -363,6 +475,23 @@ const styles = StyleSheet.create({
     minWidth: 90,
   },
   unit: { color: GymTheme.textMuted, fontSize: 16, fontWeight: '600' },
+  fieldLabel: { color: GymTheme.textMuted, fontSize: 12, fontWeight: '700' },
+  profileGrid: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.md },
+  compactField: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  ageText: { color: GymTheme.primary, fontSize: 13, fontWeight: '700' },
+  reminderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: GymTheme.border,
+    paddingTop: Spacing.md,
+  },
+  reminderTitle: { color: GymTheme.text, fontSize: 14, fontWeight: '700' },
+  measurements: { gap: Spacing.sm, borderTopWidth: 1, borderTopColor: GymTheme.border, paddingTop: Spacing.md },
+  measurementRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  measurementDate: { color: GymTheme.textMuted, fontSize: 13 },
+  measurementWeight: { color: GymTheme.text, fontSize: 14, fontWeight: '800' },
   exerciseRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 6 },
   exerciseName: { color: GymTheme.text, fontSize: 15, flex: 1, fontWeight: '500' },
   tag: {
@@ -401,3 +530,32 @@ const styles = StyleSheet.create({
   version: { color: GymTheme.textFaint, fontSize: 12, textAlign: 'center' },
   author: { color: GymTheme.textMuted, fontSize: 13, fontWeight: '700', letterSpacing: 0.3 },
 });
+
+function displayDateToIso(value: string): string | null {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value.trim());
+  if (!match) return null;
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day ||
+    date.getTime() > Date.now()
+  ) return null;
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function isoToDisplayDate(value: string): string {
+  const [year, month, day] = value.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+function ageFromIso(value: string): number {
+  const [year, month, day] = value.split('-').map(Number);
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  if (today.getMonth() + 1 < month || (today.getMonth() + 1 === month && today.getDate() < day)) age--;
+  return Math.max(0, age);
+}

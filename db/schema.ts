@@ -3,7 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 /**
  * Versión del esquema. Se guarda con PRAGMA user_version para futuras migraciones.
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /**
  * Definición de tablas (Paso 1).
@@ -100,6 +100,13 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT
 );
 
+-- Histórico de registros de peso corporal.
+CREATE TABLE IF NOT EXISTS body_measurements (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  weight      REAL    NOT NULL,
+  recorded_at INTEGER NOT NULL
+);
+
 -- Notas de Desarrollo (Backlog). EXCLUIDA de export/import.
 CREATE TABLE IF NOT EXISTS dev_notes (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -115,6 +122,7 @@ CREATE INDEX IF NOT EXISTS idx_sess_ex_exercise        ON session_exercises(exer
 CREATE INDEX IF NOT EXISTS idx_sets_sess_ex            ON sets(session_exercise_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_status         ON sessions(status);
 CREATE INDEX IF NOT EXISTS idx_sessions_start          ON sessions(start_ts);
+CREATE INDEX IF NOT EXISTS idx_body_measurements_date  ON body_measurements(recorded_at);
 `;
 
 /**

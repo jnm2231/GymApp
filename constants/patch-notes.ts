@@ -44,6 +44,11 @@ export const PATCH_NOTES: VersionNotes[] = [
         detail:
           'El histórico muestra todos los ejercicios realizados, excluye los que nunca se han entrenado y permite ordenarlos por nombre, número de veces realizado o mejor 1RM. Cada ejercicio indica además su número total de realizaciones.',
       },
+      {
+        title: 'Registro corporal',
+        detail:
+          'Ajustes permite registrar peso con histórico, altura y fecha de nacimiento, calculando la edad automáticamente. También se puede activar un recordatorio semanal para volver a registrar el peso.',
+      },
     ],
     fixes: [],
   },
