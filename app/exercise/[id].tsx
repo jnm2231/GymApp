@@ -1,3 +1,4 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
@@ -53,6 +54,11 @@ export default function ExerciseDetailScreen() {
           />
         ) : (
           <>
+            <View style={styles.summaryCard}>
+              <MaterialCommunityIcons name="repeat" size={20} color={GymTheme.primary} />
+              <Text style={styles.summaryValue}>{history.length}</Text>
+              <Text style={styles.summaryLabel}>{history.length === 1 ? 'vez realizado' : 'veces realizado'}</Text>
+            </View>
             <View style={styles.card}>
               <Text style={styles.cardTitle}>1RM promedio</Text>
               <Text style={styles.cardSub}>Media del 1RM de todas las series de cada día.</Text>
@@ -123,6 +129,18 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     gap: Spacing.sm,
   },
+  summaryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: GymTheme.surface,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: GymTheme.border,
+    padding: Spacing.lg,
+  },
+  summaryValue: { color: GymTheme.primary, fontSize: 22, fontWeight: '900' },
+  summaryLabel: { color: GymTheme.textMuted, fontSize: 14, fontWeight: '700' },
   cardTitle: { color: GymTheme.text, fontSize: 17, fontWeight: '800' },
   cardSub: { color: GymTheme.textMuted, fontSize: 12 },
   sectionLabel: {

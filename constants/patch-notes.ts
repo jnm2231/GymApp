@@ -39,6 +39,11 @@ export const PATCH_NOTES: VersionNotes[] = [
         detail:
           'Al comenzar un entrenamiento se muestra la duración media de las últimas 20 sesiones finalizadas de ese mismo día y la hora estimada de finalización. El cálculo usa la hora real de la última serie.',
       },
+      {
+        title: 'Histórico global de ejercicios',
+        detail:
+          'El histórico muestra todos los ejercicios realizados, excluye los que nunca se han entrenado y permite ordenarlos por nombre, número de veces realizado o mejor 1RM. Cada ejercicio indica además su número total de realizaciones.',
+      },
     ],
     fixes: [],
   },

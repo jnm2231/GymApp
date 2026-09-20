@@ -16,6 +16,10 @@ publicar una versión.
 - **Duración media y fin estimado.** Al comenzar un entrenamiento se muestra la
   duración media de las últimas 20 sesiones finalizadas de ese mismo día y la
   hora estimada de finalización. El cálculo usa como final real la última serie.
+- **Histórico global de ejercicios.** La pestaña Histórico muestra todos los
+  ejercicios realizados, excluye los que nunca se han entrenado y permite
+  ordenarlos por nombre, número de veces realizado o mejor 1RM. Cada histórico
+  individual indica también cuántas veces se realizó el ejercicio.
 
 ### Solución de errores
 - Sin correcciones en esta versión.

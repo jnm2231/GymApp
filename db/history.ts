@@ -14,6 +14,37 @@ export interface ExerciseHistoryEntry {
   sets: ExerciseSet[];
 }
 
+export interface PerformedExerciseSummary {
+  exerciseId: number | null;
+  name: string;
+  timesPerformed: number;
+  bestOneRepMax: number;
+}
+
+/** Todos los ejercicios que aparecen al menos una vez en sesiones finalizadas. */
+export async function getPerformedExerciseSummaries(
+  db: SQLiteDatabase
+): Promise<PerformedExerciseSummary[]> {
+  return db.getAllAsync<PerformedExerciseSummary>(
+    `SELECT se.exercise_id AS exerciseId,
+            COALESCE(e.name, se.exercise_name) AS name,
+            COUNT(DISTINCT se.id) AS timesPerformed,
+            MAX(
+              (CASE WHEN se.es_corporal = 1
+                    THEN COALESCE(s.user_weight, 0) + COALESCE(st.weight, se.weight, 0)
+                    ELSE COALESCE(st.weight, se.weight, 0)
+               END) * (1 + st.reps / 30.0)
+            ) AS bestOneRepMax
+       FROM session_exercises se
+       JOIN sessions s ON s.id = se.session_id
+       JOIN sets st ON st.session_exercise_id = se.id
+       LEFT JOIN exercises e ON e.id = se.exercise_id
+      WHERE s.status = 'finished'
+      GROUP BY COALESCE(CAST(se.exercise_id AS TEXT), 'deleted:' || LOWER(se.exercise_name))
+      ORDER BY name COLLATE NOCASE ASC`
+  );
+}
+
 /**
  * Histórico completo de un ejercicio (todas las sesiones finalizadas en las que
  * se hizo y tuvo al menos una serie), ordenado cronológicamente ascendente.
