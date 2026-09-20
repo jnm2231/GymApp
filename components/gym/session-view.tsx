@@ -15,12 +15,14 @@ import {
   discardSession,
   finishSession,
   getActiveSession,
+  getAverageDayDuration,
   getSessionExercisesWithSets,
   pauseSession,
   resumeSession,
 } from '@/db/sessions';
+import type { DayDurationEstimate } from '@/db/sessions';
 import type { Exercise, Session, SessionExerciseWithSets } from '@/db/types';
-import { formatHM } from '@/lib/format';
+import { formatDuration, formatHM } from '@/lib/format';
 import { useKeyboardHeight } from '@/lib/use-keyboard';
 import { cancelWorkoutReminder, scheduleWorkoutReminder } from '@/lib/workout-notifications';
 
@@ -36,6 +38,7 @@ export function SessionView() {
 
   const [session, setSession] = useState<Session | null>(null);
   const [blocks, setBlocks] = useState<SessionExerciseWithSets[]>([]);
+  const [durationEstimate, setDurationEstimate] = useState<DayDurationEstimate | null>(null);
   const [focusedId, setFocusedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -57,11 +60,16 @@ export function SessionView() {
     const s = await getActiveSession(db);
     setSession(s);
     if (!s) {
+      setDurationEstimate(null);
       setLoading(false);
       return;
     }
-    const bs = await getSessionExercisesWithSets(db, s.id);
+    const [bs, estimate] = await Promise.all([
+      getSessionExercisesWithSets(db, s.id),
+      s.day_id == null ? Promise.resolve(null) : getAverageDayDuration(db, s.day_id),
+    ]);
     setBlocks(bs);
+    setDurationEstimate(estimate);
     await scheduleWorkoutReminder(db, s.id);
     setFocusedId((prev) => {
       const stillValid = prev != null && bs.some((b) => b.id === prev && b.status !== 'done');
@@ -183,6 +191,15 @@ export function SessionView() {
         <View style={{ flex: 1 }}>
           <Text style={styles.dayName}>{session.day_name}</Text>
           <Text style={styles.startedAt}>Inicio · {formatHM(session.start_ts)}</Text>
+          {durationEstimate ? (
+            <Text style={styles.estimate}>
+              Media {durationEstimate.sampleSize < 20 ? `(${durationEstimate.sampleSize})` : '(20)'} ·{' '}
+              {formatDuration(session.start_ts, session.start_ts + durationEstimate.averageMs)} · Fin estimado{' '}
+              {formatHM(session.start_ts + durationEstimate.averageMs)}
+            </Text>
+          ) : (
+            <Text style={styles.estimateEmpty}>Sin entrenamientos previos para estimar la duración</Text>
+          )}
         </View>
         <Pressable onPress={handleDiscard} hitSlop={8} style={styles.headerIcon}>
           <MaterialCommunityIcons name="trash-can-outline" size={22} color={GymTheme.danger} />
@@ -295,6 +312,8 @@ const styles = StyleSheet.create({
   headerIcon: { padding: 4 },
   dayName: { color: GymTheme.text, fontSize: 22, fontWeight: '800' },
   startedAt: { color: GymTheme.textMuted, fontSize: 13, marginTop: 2 },
+  estimate: { color: GymTheme.primary, fontSize: 12, fontWeight: '700', marginTop: 3 },
+  estimateEmpty: { color: GymTheme.textFaint, fontSize: 11, marginTop: 3 },
   content: { padding: Spacing.lg, gap: Spacing.md },
   pickHint: {
     flexDirection: 'row',

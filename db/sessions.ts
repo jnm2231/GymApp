@@ -8,6 +8,11 @@ import type {
   SessionExerciseWithSets,
 } from './types';
 
+export interface DayDurationEstimate {
+  averageMs: number;
+  sampleSize: number;
+}
+
 /** Sesión en curso o pausada (sólo puede haber una a la vez). */
 export async function getActiveSession(db: SQLiteDatabase): Promise<Session | null> {
   return db.getFirstAsync<Session>(
@@ -19,6 +24,36 @@ export async function getActiveSession(db: SQLiteDatabase): Promise<Session | nu
 
 export async function getSession(db: SQLiteDatabase, id: number): Promise<Session | null> {
   return db.getFirstAsync<Session>('SELECT * FROM sessions WHERE id = ?', [id]);
+}
+
+/** Duración media real de las últimas 20 sesiones finalizadas del mismo día. */
+export async function getAverageDayDuration(
+  db: SQLiteDatabase,
+  dayId: number
+): Promise<DayDurationEstimate | null> {
+  const result = await db.getFirstAsync<{ average_ms: number | null; sample_size: number }>(
+    `SELECT AVG(duration_ms) AS average_ms, COUNT(*) AS sample_size
+       FROM (
+         SELECT (SELECT MAX(st.ts)
+                   FROM sets st
+                   JOIN session_exercises se ON se.id = st.session_exercise_id
+                  WHERE se.session_id = s.id) - s.start_ts AS duration_ms
+           FROM sessions s
+          WHERE s.day_id = ?
+            AND s.status = 'finished'
+            AND EXISTS (
+              SELECT 1 FROM sets st
+              JOIN session_exercises se ON se.id = st.session_exercise_id
+              WHERE se.session_id = s.id
+            )
+          ORDER BY s.start_ts DESC
+          LIMIT 20
+       ) recent
+      WHERE duration_ms >= 0`,
+    [dayId]
+  );
+  if (result?.average_ms == null || result.sample_size === 0) return null;
+  return { averageMs: Math.round(result.average_ms), sampleSize: result.sample_size };
 }
 
 /**

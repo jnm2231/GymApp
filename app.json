@@ -2,7 +2,7 @@
   "expo": {
     "name": "GymApp",
     "slug": "GymApp",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "orientation": "portrait",
     "icon": "./assets/images/app-icon.png",
     "scheme": "gymapp",
@@ -12,7 +12,7 @@
     },
     "android": {
       "package": "com.jnm2231.gymapp",
-      "versionCode": 4,
+      "versionCode": 5,
       "adaptiveIcon": {
         "backgroundColor": "#0C0C0E",
         "foregroundImage": "./assets/images/logo.png"

@@ -10,6 +10,18 @@ publicar una versión.
 
 ---
 
+## v1.3.0 — 2026-09-20
+
+### Nuevas funcionalidades
+- **Duración media y fin estimado.** Al comenzar un entrenamiento se muestra la
+  duración media de las últimas 20 sesiones finalizadas de ese mismo día y la
+  hora estimada de finalización. El cálculo usa como final real la última serie.
+
+### Solución de errores
+- Sin correcciones en esta versión.
+
+---
+
 ## v1.2.0 — 2026-06-14
 
 ### Nuevas funcionalidades

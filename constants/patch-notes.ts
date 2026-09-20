@@ -30,6 +30,19 @@ export interface VersionNotes {
 /** Ordenadas de más reciente a más antigua. */
 export const PATCH_NOTES: VersionNotes[] = [
   {
+    version: '1.3.0',
+    date: '2026-09-20',
+    summary: 'Estimaciones, histórico ampliado, registro corporal y nuevos tipos de entrenamiento.',
+    features: [
+      {
+        title: 'Duración media y fin estimado',
+        detail:
+          'Al comenzar un entrenamiento se muestra la duración media de las últimas 20 sesiones finalizadas de ese mismo día y la hora estimada de finalización. El cálculo usa la hora real de la última serie.',
+      },
+    ],
+    fixes: [],
+  },
+  {
     version: '1.2.0',
     date: '2026-06-14',
     features: [
@@ -184,4 +197,4 @@ export const PATCH_NOTES: VersionNotes[] = [
 ];
 
 /** Versión más reciente (la primera de la lista). */
-export const CURRENT_VERSION = PATCH_NOTES[0]?.version ?? '1.2.0';
+export const CURRENT_VERSION = PATCH_NOTES[0]?.version ?? '1.3.0';
