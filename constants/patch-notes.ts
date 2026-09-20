@@ -49,6 +49,11 @@ export const PATCH_NOTES: VersionNotes[] = [
         detail:
           'Ajustes permite registrar peso con histórico, altura y fecha de nacimiento, calculando la edad automáticamente. También se puede activar un recordatorio semanal para volver a registrar el peso.',
       },
+      {
+        title: 'Días de musculación, cardio y calistenia',
+        detail:
+          'Los días se clasifican y distinguen por color: musculación en naranja, cardio en azul y calistenia en verde. Los ejercicios de cardio permiten configurar y registrar tiempo, distancia o ambos, además de notas.',
+      },
     ],
     fixes: [],
   },

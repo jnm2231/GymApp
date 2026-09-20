@@ -24,6 +24,13 @@ publicar una versión.
   fecha de nacimiento, calculando la edad automáticamente. Se puede activar un
   recordatorio semanal que se reinicia siete días después de cada nuevo peso.
   - *Modelo de datos:* nueva tabla `body_measurements` y esquema v3.
+- **Días de musculación, cardio y calistenia.** Las plantillas y sus sesiones se
+  clasifican por tipo y se distinguen por color: musculación en naranja, cardio
+  en azul y calistenia en verde. Los ejercicios de cardio pueden configurarse
+  para registrar tiempo, distancia o ambos, además de notas, y sus resultados
+  aparecen en el calendario y el histórico.
+  - *Modelo de datos:* tipos fotografiados en plantillas y sesiones, nueva tabla
+    `cardio_entries` y esquema v4.
 
 ### Solución de errores
 - Sin correcciones en esta versión.

@@ -9,7 +9,7 @@ import { EmptyState, Loading } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { ExerciseHistoryEntry, getExerciseHistory } from '@/db/history';
 import { averageOneRepMax } from '@/lib/calc';
-import { formatDate, formatDuration, formatHM, formatRest } from '@/lib/format';
+import { formatCardioSummary, formatDate, formatDuration, formatHM, formatRest } from '@/lib/format';
 
 export default function ExerciseDetailScreen() {
   const db = useSQLiteContext();
@@ -39,6 +39,7 @@ export default function ExerciseDetailScreen() {
     value: averageOneRepMax(h.sets, h.weight ?? 0, h.es_corporal === 1, h.user_weight ?? 0),
     label: shortDate(h.session_start_ts),
   }));
+  const isCardio = history[0]?.exercise_type === 'cardio';
 
   // Registros más recientes primero.
   const records = [...history].reverse();
@@ -59,11 +60,13 @@ export default function ExerciseDetailScreen() {
               <Text style={styles.summaryValue}>{history.length}</Text>
               <Text style={styles.summaryLabel}>{history.length === 1 ? 'vez realizado' : 'veces realizado'}</Text>
             </View>
+            {!isCardio ? (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>1RM promedio</Text>
               <Text style={styles.cardSub}>Media del 1RM de todas las series de cada día.</Text>
               <LineChart points={points} width={width - Spacing.lg * 2 - Spacing.lg * 2} />
             </View>
+            ) : null}
 
             <Text style={styles.sectionLabel}>Registros</Text>
             {records.map((r) => (
@@ -77,6 +80,20 @@ export default function ExerciseDetailScreen() {
 }
 
 function RecordCard({ entry, name }: { entry: ExerciseHistoryEntry; name: string }) {
+  if (entry.exercise_type === 'cardio') {
+    return (
+      <View style={styles.record}>
+        <View style={styles.recordHeader}>
+          <Text style={styles.recordDate}>{formatDate(entry.session_start_ts)}</Text>
+          <Text style={styles.recordTime}>{formatHM(entry.end_ts)}</Text>
+        </View>
+        <Text style={styles.cardioResult}>
+          {formatCardioSummary(entry.cardio_entry?.duration_seconds, entry.cardio_entry?.distance_km)}
+        </Text>
+        {entry.cardio_entry?.notes ? <Text style={styles.recordName}>{entry.cardio_entry.notes}</Text> : null}
+      </View>
+    );
+  }
   const avg = averageOneRepMax(entry.sets, entry.weight ?? 0, entry.es_corporal === 1, entry.user_weight ?? 0);
   // ¿Alguna serie usa un peso distinto del global? Solo entonces detallamos el peso por serie.
   const variableWeight = entry.sets.some((s) => s.weight != null && s.weight !== entry.weight);
@@ -179,4 +196,5 @@ const styles = StyleSheet.create({
   repWeight: { color: GymTheme.primary, fontSize: 11, fontWeight: '700', marginTop: 1 },
   repRest: { color: GymTheme.textFaint, fontSize: 10, marginTop: 2 },
   recordAvg: { color: GymTheme.textMuted, fontSize: 12, marginTop: 2 },
+  cardioResult: { color: GymTheme.cardio, fontSize: 20, fontWeight: '900' },
 });

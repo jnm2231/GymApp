@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useAlert } from '@/components/gym/alert';
+import { CardioExerciseBlock } from '@/components/gym/cardio-exercise-block';
 import { ExerciseBlock } from '@/components/gym/exercise-block';
 import { Button, Loading, Screen } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
@@ -24,6 +25,7 @@ import type { DayDurationEstimate } from '@/db/sessions';
 import type { Exercise, Session, SessionExerciseWithSets } from '@/db/types';
 import { formatDuration, formatHM } from '@/lib/format';
 import { useKeyboardHeight } from '@/lib/use-keyboard';
+import { getTrainingType } from '@/lib/training-types';
 import { cancelWorkoutReminder, scheduleWorkoutReminder } from '@/lib/workout-notifications';
 
 /**
@@ -137,13 +139,15 @@ export function SessionView() {
     ]);
   };
 
+  const sessionType = getTrainingType(session.day_type);
+
   // --- Estado pausado: tarjeta compacta para reanudar ---
   if (session.status === 'paused') {
     return (
       <Screen>
         <View style={styles.pausedWrap}>
           <View style={styles.pausedCard}>
-            <MaterialCommunityIcons name="pause-circle" size={48} color={GymTheme.primary} />
+            <MaterialCommunityIcons name="pause-circle" size={48} color={sessionType.color} />
             <Text style={styles.pausedTitle}>Entrenamiento en pausa</Text>
             <Text style={styles.pausedDay}>{session.day_name}</Text>
             <Text style={styles.pausedSub}>Inicio · {formatHM(session.start_ts)}</Text>
@@ -171,12 +175,21 @@ export function SessionView() {
   const pendingCount = blocks.filter((b) => b.status !== 'done').length;
 
   const openPicker = async () => {
-    setCatalog(await listExercises(db));
+    const exercises = await listExercises(db);
+    setCatalog(exercises.filter((exercise) => exercise.exercise_type === session.day_type));
     setPickerOpen(true);
   };
 
   const pickAdditional = async (ex: Exercise) => {
-    await addAdditionalExercise(db, session.id, ex.id, ex.name, ex.es_corporal === 1);
+    await addAdditionalExercise(
+      db,
+      session.id,
+      ex.id,
+      ex.name,
+      ex.es_corporal === 1,
+      ex.exercise_type,
+      ex.cardio_tracking
+    );
     setPickerOpen(false);
     await load();
   };
@@ -185,8 +198,8 @@ export function SessionView() {
     <Screen>
       {/* Cabecera (sin escape al Inicio) */}
       <View style={styles.header}>
-        <View style={styles.headerIconBox}>
-          <MaterialCommunityIcons name="dumbbell" size={22} color={GymTheme.primary} />
+        <View style={[styles.headerIconBox, { backgroundColor: sessionType.dimColor }]}>
+          <MaterialCommunityIcons name={sessionType.icon} size={22} color={sessionType.color} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.dayName}>{session.day_name}</Text>
@@ -223,6 +236,17 @@ export function SessionView() {
             onLayout={(e) => {
               blockY.current[b.id] = e.nativeEvent.layout.y;
             }}>
+            {b.exercise_type === 'cardio' ? (
+              <CardioExerciseBlock
+                block={b}
+                isCurrent={b.id === focusedId}
+                sessionId={session.id}
+                onChanged={load}
+                onFocus={() => setFocusedId(b.id)}
+                onPostpone={() => setFocusedId(null)}
+                canFocus={focusedId == null}
+              />
+            ) : (
             <ExerciseBlock
               block={b}
               isCurrent={b.id === focusedId}
@@ -235,6 +259,7 @@ export function SessionView() {
               canFocus={focusedId == null}
               onRepsFocus={() => scrollToBlock(b.id)}
             />
+            )}
           </View>
         ))}
 
@@ -272,9 +297,9 @@ export function SessionView() {
               {catalog.map((ex) => (
                 <Pressable key={ex.id} style={styles.modalRow} onPress={() => pickAdditional(ex)}>
                   <MaterialCommunityIcons
-                    name={ex.es_corporal ? 'human-handsup' : 'weight'}
+                    name={ex.exercise_type === 'cardio' ? 'run-fast' : ex.es_corporal ? 'human-handsup' : 'weight'}
                     size={18}
-                    color={ex.es_corporal ? GymTheme.active : GymTheme.textMuted}
+                    color={getTrainingType(ex.exercise_type).color}
                   />
                   <Text style={styles.modalRowText}>{ex.name}</Text>
                 </Pressable>

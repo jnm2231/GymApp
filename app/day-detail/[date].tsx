@@ -7,7 +7,8 @@ import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'reac
 import { EmptyState, Loading } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { CalendarDayBlock, getDayDetail } from '@/db/calendar';
-import { formatDate, formatDuration, formatHM, formatRest } from '@/lib/format';
+import { formatCardioSummary, formatDate, formatDuration, formatHM, formatRest } from '@/lib/format';
+import { getTrainingType } from '@/lib/training-types';
 
 export default function DayDetailScreen() {
   const db = useSQLiteContext();
@@ -100,24 +101,34 @@ export default function DayDetailScreen() {
               }>
               <View style={styles.exHeader}>
                 <Text style={styles.exName}>{ex.exercise_name}</Text>
-                <Text style={styles.exWeight}>{variableWeight ? 'pesos variables' : `${ex.weight ?? 0} kg`}</Text>
+                <Text style={[styles.exWeight, ex.exercise_type === 'cardio' && { color: GymTheme.cardio }]}>
+                  {ex.exercise_type === 'cardio'
+                    ? formatCardioSummary(ex.cardio_entry?.duration_seconds, ex.cardio_entry?.distance_km)
+                    : variableWeight
+                      ? 'pesos variables'
+                      : `${ex.weight ?? 0} kg`}
+                </Text>
               </View>
               <Text style={styles.exTimes}>
                 ({formatHM(ex.start_ts)} - {formatHM(ex.end_ts)})
               </Text>
-              <View style={styles.repsList}>
-                {ex.sets.map((s) => (
-                  <View key={s.id} style={styles.repPill}>
-                    <Text style={styles.repValue}>{s.reps}</Text>
-                    {variableWeight ? (
-                      <Text style={styles.repWeight}>{s.weight ?? ex.weight ?? 0} kg</Text>
-                    ) : null}
-                    <Text style={styles.repRest}>
-                      {s.rest_seconds == null ? 'inicio' : formatRest(s.rest_seconds)}
-                    </Text>
-                  </View>
-                ))}
-              </View>
+              {ex.exercise_type !== 'cardio' ? (
+                <View style={styles.repsList}>
+                  {ex.sets.map((s) => (
+                    <View key={s.id} style={styles.repPill}>
+                      <Text style={styles.repValue}>{s.reps}</Text>
+                      {variableWeight ? (
+                        <Text style={styles.repWeight}>{s.weight ?? ex.weight ?? 0} kg</Text>
+                      ) : null}
+                      <Text style={styles.repRest}>
+                        {s.rest_seconds == null ? 'inicio' : formatRest(s.rest_seconds)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : ex.cardio_entry?.notes ? (
+                <Text style={styles.exTimes}>{ex.cardio_entry.notes}</Text>
+              ) : null}
               {ex.exercise_id != null ? (
                 <View style={styles.linkRow}>
                   <MaterialCommunityIcons name="chart-line" size={14} color={GymTheme.primary} />
@@ -143,10 +154,12 @@ export default function DayDetailScreen() {
         {blocks.length === 0 ? (
           <EmptyState title="Sin entrenamientos ese día" />
         ) : (
-          blocks.map((b) => (
-            <Pressable key={b.session_id} style={styles.dayBlock} onPress={() => setSelected(b)}>
-              <View style={styles.dayIcon}>
-                <MaterialCommunityIcons name="dumbbell" size={22} color={GymTheme.primary} />
+          blocks.map((b) => {
+            const type = getTrainingType(b.day_type);
+            return (
+            <Pressable key={b.session_id} style={[styles.dayBlock, { borderColor: type.color }]} onPress={() => setSelected(b)}>
+              <View style={[styles.dayIcon, { backgroundColor: type.dimColor }]}>
+                <MaterialCommunityIcons name={type.icon} size={22} color={type.color} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.dayBlockTitle}>{b.day_name}</Text>
@@ -157,7 +170,8 @@ export default function DayDetailScreen() {
               </View>
               <MaterialCommunityIcons name="chevron-right" size={22} color={GymTheme.textFaint} />
             </Pressable>
-          ))
+            );
+          })
         )}
       </ScrollView>
     </>

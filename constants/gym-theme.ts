@@ -22,6 +22,8 @@ export const GymTheme = {
   primaryDim: '#7A3300',
   active: '#33D17A', // verde "ejercicio activo"
   activeDim: '#16361F',
+  cardio: '#3B82F6',
+  cardioDim: '#172C4D',
   danger: '#E5484D',
   warning: '#F5A623',
 

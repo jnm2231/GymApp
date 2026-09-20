@@ -58,3 +58,13 @@ export function formatClock(seconds: number): string {
   const s = safe % 60;
   return `${m}:${String(s).padStart(2, '0')}`;
 }
+
+export function formatCardioSummary(
+  durationSeconds: number | null | undefined,
+  distanceKm: number | null | undefined
+): string {
+  const parts: string[] = [];
+  if (durationSeconds != null) parts.push(`${Math.round(durationSeconds / 60)} min`);
+  if (distanceKm != null) parts.push(`${distanceKm} km`);
+  return parts.join(' · ') || 'Sin métricas';
+}

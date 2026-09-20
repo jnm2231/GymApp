@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { Exercise } from './types';
+import type { CardioTracking, Exercise, TrainingType } from './types';
 
 /** Catálogo global de ejercicios, ordenado alfabéticamente. */
 export async function listExercises(db: SQLiteDatabase): Promise<Exercise[]> {
@@ -9,11 +9,15 @@ export async function listExercises(db: SQLiteDatabase): Promise<Exercise[]> {
 export async function createExercise(
   db: SQLiteDatabase,
   name: string,
-  esCorporal: boolean
+  esCorporal: boolean,
+  exerciseType: TrainingType = 'strength',
+  cardioTracking: CardioTracking = 'both'
 ): Promise<number> {
   const res = await db.runAsync(
-    'INSERT INTO exercises (name, es_corporal, created_at) VALUES (?, ?, ?)',
-    [name.trim(), esCorporal ? 1 : 0, Date.now()]
+    `INSERT INTO exercises
+       (name, es_corporal, exercise_type, cardio_tracking, created_at)
+     VALUES (?, ?, ?, ?, ?)`,
+    [name.trim(), esCorporal ? 1 : 0, exerciseType, cardioTracking, Date.now()]
   );
   return res.lastInsertRowId;
 }
@@ -22,13 +26,22 @@ export async function updateExercise(
   db: SQLiteDatabase,
   id: number,
   name: string,
-  esCorporal: boolean
+  esCorporal: boolean,
+  exerciseType: TrainingType = 'strength',
+  cardioTracking: CardioTracking = 'both'
 ): Promise<void> {
-  await db.runAsync('UPDATE exercises SET name = ?, es_corporal = ? WHERE id = ?', [
+  await db.runAsync(
+    `UPDATE exercises
+        SET name = ?, es_corporal = ?, exercise_type = ?, cardio_tracking = ?
+      WHERE id = ?`,
+    [
     name.trim(),
     esCorporal ? 1 : 0,
+    exerciseType,
+    cardioTracking,
     id,
-  ]);
+    ]
+  );
 }
 
 export async function deleteExercise(db: SQLiteDatabase, id: number): Promise<void> {

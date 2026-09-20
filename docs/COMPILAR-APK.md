@@ -133,6 +133,6 @@ Para un APK **release** firmado necesitas crear un keystore propio y configurar
 | Síntoma | Solución |
 |---------|----------|
 | `Invalid package name` | Revisa `android.package` en `app.json` (formato `com.algo.app`). |
-| La build falla al resolver dependencias nativas | Asegúrate de instalar siempre con `npx expo install <paquete>` para versiones compatibles con SDK 54. |
+| La build falla al resolver dependencias nativas | Asegúrate de instalar siempre con `npx expo install <paquete>` para versiones compatibles con SDK 57. |
 | «App no instalada» en el móvil | Desinstala una versión previa o sube el `versionCode`. |
 | Pide credenciales y no sabes qué elegir | Deja que **EAS gestione el keystore** (opción por defecto). |

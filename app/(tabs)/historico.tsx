@@ -10,6 +10,7 @@ import { getDayExercises, listDaysWithCount } from '@/db/days';
 import { getPerformedExerciseSummaries } from '@/db/history';
 import type { PerformedExerciseSummary } from '@/db/history';
 import type { DayWithCount, Exercise } from '@/db/types';
+import { getTrainingType } from '@/lib/training-types';
 
 type HistorySort = 'name' | 'count' | 'oneRm';
 
@@ -64,18 +65,21 @@ export default function HistoricoScreen() {
           {exercises.length === 0 ? (
             <EmptyState title="Este día no tiene ejercicios" />
           ) : (
-            exercises.map((ex) => (
-              <Pressable
-                key={ex.id}
-                style={styles.row}
-                onPress={() =>
-                  router.push({ pathname: '/exercise/[id]', params: { id: String(ex.id) } })
-                }>
-                <MaterialCommunityIcons name="chart-line" size={20} color={GymTheme.primary} />
-                <Text style={styles.rowText}>{ex.name}</Text>
-                <MaterialCommunityIcons name="chevron-right" size={22} color={GymTheme.textFaint} />
-              </Pressable>
-            ))
+            exercises.map((ex) => {
+              const type = getTrainingType(ex.exercise_type);
+              return (
+                <Pressable
+                  key={ex.id}
+                  style={[styles.row, { borderColor: type.color }]}
+                  onPress={() =>
+                    router.push({ pathname: '/exercise/[id]', params: { id: String(ex.id) } })
+                  }>
+                  <MaterialCommunityIcons name={type.icon} size={20} color={type.color} />
+                  <Text style={styles.rowText}>{ex.name}</Text>
+                  <MaterialCommunityIcons name="chevron-right" size={22} color={GymTheme.textFaint} />
+                </Pressable>
+              );
+            })
           )}
         </ScrollView>
       </Screen>
@@ -100,34 +104,44 @@ export default function HistoricoScreen() {
             subtitle="Finaliza un entrenamiento con series para ver aquí tus ejercicios."
           />
         ) : (
-          sortedPerformed.map((exercise) => (
-            <Pressable
-              key={`${exercise.exerciseId ?? 'deleted'}-${exercise.name}`}
-              style={styles.row}
-              disabled={exercise.exerciseId == null}
-              onPress={() =>
-                exercise.exerciseId != null &&
-                router.push({ pathname: '/exercise/[id]', params: { id: String(exercise.exerciseId) } })
-              }>
-              <MaterialCommunityIcons name="chart-line" size={20} color={GymTheme.primary} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowText}>{exercise.name}</Text>
-                <Text style={styles.rowSub}>
-                  {exercise.timesPerformed} {exercise.timesPerformed === 1 ? 'vez' : 'veces'} · Mejor 1RM{' '}
-                  {exercise.bestOneRepMax.toFixed(1)} kg
-                </Text>
-              </View>
-              {exercise.exerciseId != null ? (
-                <MaterialCommunityIcons name="chevron-right" size={22} color={GymTheme.textFaint} />
-              ) : null}
-            </Pressable>
-          ))
+          sortedPerformed.map((exercise) => {
+            const type = getTrainingType(exercise.exerciseType);
+            return (
+              <Pressable
+                key={`${exercise.exerciseId ?? 'deleted'}-${exercise.name}`}
+                style={[styles.row, { borderColor: type.color }]}
+                disabled={exercise.exerciseId == null}
+                onPress={() =>
+                  exercise.exerciseId != null &&
+                  router.push({ pathname: '/exercise/[id]', params: { id: String(exercise.exerciseId) } })
+                }>
+                <MaterialCommunityIcons name={type.icon} size={20} color={type.color} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowText}>{exercise.name}</Text>
+                  <Text style={styles.rowSub}>
+                    {exercise.timesPerformed} {exercise.timesPerformed === 1 ? 'vez' : 'veces'} ·{' '}
+                    {exercise.exerciseType === 'cardio'
+                      ? 'Cardio'
+                      : `Mejor 1RM ${exercise.bestOneRepMax.toFixed(1)} kg`}
+                  </Text>
+                </View>
+                {exercise.exerciseId != null ? (
+                  <MaterialCommunityIcons name="chevron-right" size={22} color={GymTheme.textFaint} />
+                ) : null}
+              </Pressable>
+            );
+          })
         )}
 
         {days.length > 0 ? <Text style={[styles.sectionLabel, { marginTop: Spacing.md }]}>Explorar por día</Text> : null}
-        {days.map((day) => (
-            <Pressable key={day.id} style={styles.row} onPress={() => openDay(day)}>
-              <MaterialCommunityIcons name="calendar-text" size={20} color={GymTheme.primary} />
+        {days.map((day) => {
+          const type = getTrainingType(day.training_type);
+          return (
+            <Pressable
+              key={day.id}
+              style={[styles.row, { borderColor: type.color }]}
+              onPress={() => openDay(day)}>
+              <MaterialCommunityIcons name={type.icon} size={20} color={type.color} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowText}>{day.name}</Text>
                 <Text style={styles.rowSub}>
@@ -136,7 +150,8 @@ export default function HistoricoScreen() {
               </View>
               <MaterialCommunityIcons name="chevron-right" size={22} color={GymTheme.textFaint} />
             </Pressable>
-          ))}
+          );
+        })}
       </ScrollView>
     </Screen>
   );

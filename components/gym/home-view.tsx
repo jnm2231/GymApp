@@ -12,6 +12,7 @@ import { useSession } from '@/context/session-context';
 import { deleteDay, listDaysWithCount } from '@/db/days';
 import { startSession } from '@/db/sessions';
 import type { DayWithCount } from '@/db/types';
+import { getTrainingType } from '@/lib/training-types';
 
 /** Pantalla Inicial: lista de tipos de día. Sólo se muestra cuando NO hay
  * ninguna sesión activa (si la hay, la pestaña "Entreno" muestra la sesión). */
@@ -78,19 +79,22 @@ export function HomeView() {
             subtitle="Crea tu primer día de entrenamiento (ej: Pecho, Espalda, Pierna) para empezar."
           />
         ) : (
-          days.map((day) => (
-            <View key={day.id} style={styles.dayCard}>
+          days.map((day) => {
+            const type = getTrainingType(day.training_type);
+            return (
+            <View key={day.id} style={[styles.dayCard, { borderColor: type.color }]}>
               <Pressable style={styles.dayMain} onPress={() => handleStart(day)}>
-                <View style={styles.dayIcon}>
-                  <MaterialCommunityIcons name="dumbbell" size={22} color={GymTheme.primary} />
+                <View style={[styles.dayIcon, { backgroundColor: type.dimColor }]}>
+                  <MaterialCommunityIcons name={type.icon} size={22} color={type.color} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.dayName}>{day.name}</Text>
                   <Text style={styles.dayCount}>
-                    {day.exercise_count} {day.exercise_count === 1 ? 'ejercicio' : 'ejercicios'}
+                    {type.label} · {day.exercise_count}{' '}
+                    {day.exercise_count === 1 ? 'ejercicio' : 'ejercicios'}
                   </Text>
                 </View>
-                <View style={styles.startPill}>
+                <View style={[styles.startPill, { backgroundColor: type.color }]}>
                   <MaterialCommunityIcons name="play" size={16} color="#0C0C0E" />
                   <Text style={styles.startText}>Empezar</Text>
                 </View>
@@ -107,7 +111,8 @@ export function HomeView() {
                 </Pressable>
               </View>
             </View>
-          ))
+            );
+          })
         )}
 
         <Button

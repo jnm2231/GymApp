@@ -1,15 +1,21 @@
 // Tipos del dominio, espejo del esquema SQLite (ver db/schema.ts).
 
+export type TrainingType = 'strength' | 'cardio' | 'calisthenics';
+export type CardioTracking = 'duration' | 'distance' | 'both';
+
 export interface Exercise {
   id: number;
   name: string;
   es_corporal: number; // 0 = carga externa, 1 = peso corporal (+ lastre)
+  exercise_type: TrainingType;
+  cardio_tracking: CardioTracking;
   created_at: number;
 }
 
 export interface Day {
   id: number;
   name: string;
+  training_type: TrainingType;
   created_at: number;
 }
 
@@ -30,6 +36,7 @@ export interface Session {
   end_ts: number | null; // ms
   user_weight: number | null; // snapshot del peso del usuario
   status: SessionStatus;
+  day_type: TrainingType;
 }
 
 export type SessionExerciseStatus = 'pending' | 'active' | 'done';
@@ -46,6 +53,8 @@ export interface SessionExercise {
   start_ts: number | null;
   end_ts: number | null;
   status: SessionExerciseStatus;
+  exercise_type: TrainingType;
+  cardio_tracking: CardioTracking;
 }
 
 export interface ExerciseSet {
@@ -56,6 +65,15 @@ export interface ExerciseSet {
   ts: number; // ms al confirmar el tick
   rest_seconds: number | null; // descanso respecto a la serie anterior (NULL en la 1ª)
   weight: number | null; // peso de ESTA serie (kg). NULL = hereda el peso global del ejercicio.
+}
+
+export interface CardioEntry {
+  id: number;
+  session_exercise_id: number;
+  duration_seconds: number | null;
+  distance_km: number | null;
+  notes: string | null;
+  ts: number;
 }
 
 export interface DevNote {
@@ -78,4 +96,5 @@ export interface DayWithCount extends Day {
 
 export interface SessionExerciseWithSets extends SessionExercise {
   sets: ExerciseSet[];
+  cardio_entry: CardioEntry | null;
 }

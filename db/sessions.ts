@@ -2,10 +2,14 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { getDayExercises } from './days';
 import { getUserWeight } from './settings';
 import type {
+  CardioEntry,
+  CardioTracking,
+  Day,
   ExerciseSet,
   Session,
   SessionExercise,
   SessionExerciseWithSets,
+  TrainingType,
 } from './types';
 
 export interface DayDurationEstimate {
@@ -34,17 +38,26 @@ export async function getAverageDayDuration(
   const result = await db.getFirstAsync<{ average_ms: number | null; sample_size: number }>(
     `SELECT AVG(duration_ms) AS average_ms, COUNT(*) AS sample_size
        FROM (
-         SELECT (SELECT MAX(st.ts)
-                   FROM sets st
-                   JOIN session_exercises se ON se.id = st.session_exercise_id
-                  WHERE se.session_id = s.id) - s.start_ts AS duration_ms
+         SELECT (SELECT MAX(activity_ts) FROM (
+                   SELECT st.ts AS activity_ts
+                     FROM sets st
+                     JOIN session_exercises se ON se.id = st.session_exercise_id
+                    WHERE se.session_id = s.id
+                   UNION ALL
+                   SELECT ce.ts AS activity_ts
+                     FROM cardio_entries ce
+                     JOIN session_exercises se ON se.id = ce.session_exercise_id
+                    WHERE se.session_id = s.id
+                 )) - s.start_ts AS duration_ms
            FROM sessions s
           WHERE s.day_id = ?
             AND s.status = 'finished'
             AND EXISTS (
-              SELECT 1 FROM sets st
-              JOIN session_exercises se ON se.id = st.session_exercise_id
-              WHERE se.session_id = s.id
+              SELECT 1 FROM session_exercises se
+              WHERE se.session_id = s.id AND (
+                EXISTS (SELECT 1 FROM sets st WHERE st.session_exercise_id = se.id)
+                OR EXISTS (SELECT 1 FROM cardio_entries ce WHERE ce.session_exercise_id = se.id)
+              )
             )
           ORDER BY s.start_ts DESC
           LIMIT 20
@@ -61,9 +74,7 @@ export async function getAverageDayDuration(
  * peso del usuario y crea un bloque (`session_exercises`) por cada ejercicio.
  */
 export async function startSession(db: SQLiteDatabase, dayId: number): Promise<number> {
-  const day = await db.getFirstAsync<{ name: string }>('SELECT name FROM days WHERE id = ?', [
-    dayId,
-  ]);
+  const day = await db.getFirstAsync<Day>('SELECT * FROM days WHERE id = ?', [dayId]);
   const exercises = await getDayExercises(db, dayId);
   const userWeight = await getUserWeight(db);
   const now = Date.now();
@@ -71,9 +82,9 @@ export async function startSession(db: SQLiteDatabase, dayId: number): Promise<n
   let sessionId = 0;
   await db.withTransactionAsync(async () => {
     const res = await db.runAsync(
-      `INSERT INTO sessions (day_id, day_name, start_ts, end_ts, user_weight, status)
-       VALUES (?, ?, ?, NULL, ?, 'active')`,
-      [dayId, day?.name ?? 'Entrenamiento', now, userWeight]
+      `INSERT INTO sessions (day_id, day_name, start_ts, end_ts, user_weight, status, day_type)
+       VALUES (?, ?, ?, NULL, ?, 'active', ?)`,
+      [dayId, day?.name ?? 'Entrenamiento', now, userWeight, day?.training_type ?? 'strength']
     );
     sessionId = res.lastInsertRowId;
 
@@ -81,9 +92,10 @@ export async function startSession(db: SQLiteDatabase, dayId: number): Promise<n
       const ex = exercises[i];
       await db.runAsync(
         `INSERT INTO session_exercises
-           (session_id, exercise_id, exercise_name, es_corporal, weight, position, is_additional, status)
-         VALUES (?, ?, ?, ?, NULL, ?, 0, 'pending')`,
-        [sessionId, ex.id, ex.name, ex.es_corporal, i]
+           (session_id, exercise_id, exercise_name, es_corporal, weight, position, is_additional,
+            status, exercise_type, cardio_tracking)
+         VALUES (?, ?, ?, ?, NULL, ?, 0, 'pending', ?, ?)`,
+        [sessionId, ex.id, ex.name, ex.es_corporal, i, ex.exercise_type, ex.cardio_tracking]
       );
     }
   });
@@ -111,7 +123,11 @@ export async function getSessionExercisesWithSets(
       'SELECT * FROM sets WHERE session_exercise_id = ? ORDER BY set_index ASC',
       [b.id]
     );
-    result.push({ ...b, sets });
+    const cardioEntry = await db.getFirstAsync<CardioEntry>(
+      'SELECT * FROM cardio_entries WHERE session_exercise_id = ?',
+      [b.id]
+    );
+    result.push({ ...b, sets, cardio_entry: cardioEntry ?? null });
   }
   return result;
 }
@@ -198,6 +214,50 @@ export async function deleteSet(db: SQLiteDatabase, setId: number): Promise<void
   await db.runAsync('DELETE FROM sets WHERE id = ?', [setId]);
 }
 
+export async function completeCardioExercise(
+  db: SQLiteDatabase,
+  sessionExerciseId: number,
+  durationSeconds: number | null,
+  distanceKm: number | null,
+  notes: string | null
+): Promise<void> {
+  const now = Date.now();
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      `INSERT INTO cardio_entries
+         (session_exercise_id, duration_seconds, distance_km, notes, ts)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(session_exercise_id) DO UPDATE SET
+         duration_seconds = excluded.duration_seconds,
+         distance_km = excluded.distance_km,
+         notes = excluded.notes,
+         ts = excluded.ts`,
+      [sessionExerciseId, durationSeconds, distanceKm, notes, now]
+    );
+    await db.runAsync(
+      `UPDATE session_exercises
+          SET start_ts = COALESCE(start_ts, ?), end_ts = ?, status = 'done'
+        WHERE id = ?`,
+      [now, now, sessionExerciseId]
+    );
+  });
+}
+
+export async function updateCardioEntry(
+  db: SQLiteDatabase,
+  sessionExerciseId: number,
+  durationSeconds: number | null,
+  distanceKm: number | null,
+  notes: string | null
+): Promise<void> {
+  await db.runAsync(
+    `UPDATE cardio_entries
+        SET duration_seconds = ?, distance_km = ?, notes = ?
+      WHERE session_exercise_id = ?`,
+    [durationSeconds, distanceKm, notes, sessionExerciseId]
+  );
+}
+
 /** Botón "Terminado": fija hora de fin y bloquea el bloque. */
 export async function finishExercise(
   db: SQLiteDatabase,
@@ -225,7 +285,9 @@ export async function addAdditionalExercise(
   sessionId: number,
   exerciseId: number,
   exerciseName: string,
-  esCorporal: boolean
+  esCorporal: boolean,
+  exerciseType: TrainingType = 'strength',
+  cardioTracking: CardioTracking = 'both'
 ): Promise<number> {
   const row = await db.getFirstAsync<{ maxPos: number | null }>(
     'SELECT MAX(position) AS maxPos FROM session_exercises WHERE session_id = ?',
@@ -234,9 +296,10 @@ export async function addAdditionalExercise(
   const position = (row?.maxPos ?? -1) + 1;
   const res = await db.runAsync(
     `INSERT INTO session_exercises
-       (session_id, exercise_id, exercise_name, es_corporal, weight, position, is_additional, status)
-     VALUES (?, ?, ?, ?, NULL, ?, 1, 'pending')`,
-    [sessionId, exerciseId, exerciseName, esCorporal ? 1 : 0, position]
+       (session_id, exercise_id, exercise_name, es_corporal, weight, position, is_additional,
+        status, exercise_type, cardio_tracking)
+     VALUES (?, ?, ?, ?, NULL, ?, 1, 'pending', ?, ?)`,
+    [sessionId, exerciseId, exerciseName, esCorporal ? 1 : 0, position, exerciseType, cardioTracking]
   );
   return res.lastInsertRowId;
 }
@@ -255,11 +318,18 @@ export async function resumeSession(db: SQLiteDatabase, sessionId: number): Prom
 export async function finishSession(db: SQLiteDatabase, sessionId: number): Promise<void> {
   const now = Date.now();
   const lastSet = await db.getFirstAsync<{ last_ts: number | null }>(
-    `SELECT MAX(st.ts) AS last_ts
-       FROM sets st
-       JOIN session_exercises se ON se.id = st.session_exercise_id
-      WHERE se.session_id = ?`,
-    [sessionId]
+    `SELECT MAX(activity_ts) AS last_ts FROM (
+       SELECT st.ts AS activity_ts
+         FROM sets st
+         JOIN session_exercises se ON se.id = st.session_exercise_id
+        WHERE se.session_id = ?
+       UNION ALL
+       SELECT ce.ts AS activity_ts
+         FROM cardio_entries ce
+         JOIN session_exercises se ON se.id = ce.session_exercise_id
+        WHERE se.session_id = ?
+     )`,
+    [sessionId, sessionId]
   );
   const sessionEnd = lastSet?.last_ts ?? now;
   await db.withTransactionAsync(async () => {

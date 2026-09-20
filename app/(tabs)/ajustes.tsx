@@ -35,7 +35,7 @@ import {
   listExercises,
 } from '@/db/exercises';
 import { getDevNote, saveDevNote } from '@/db/notes';
-import type { BodyMeasurement, Exercise } from '@/db/types';
+import type { BodyMeasurement, CardioTracking, Exercise, TrainingType } from '@/db/types';
 import { exportBackup, importBackup } from '@/lib/backup-io';
 import {
   disableWeeklyWeightReminder,
@@ -43,6 +43,7 @@ import {
   scheduleWeeklyWeightReminder,
 } from '@/lib/body-notifications';
 import { formatDate } from '@/lib/format';
+import { getTrainingType, TRAINING_TYPES } from '@/lib/training-types';
 import { useKeyboardHeight } from '@/lib/use-keyboard';
 
 const CATALOG_PREVIEW = 5; // ejercicios visibles antes de "Ver todos"
@@ -64,6 +65,8 @@ export default function AjustesScreen() {
   const [catalogExpanded, setCatalogExpanded] = useState(false);
   const [newName, setNewName] = useState('');
   const [newCorporal, setNewCorporal] = useState(false);
+  const [newExerciseType, setNewExerciseType] = useState<TrainingType>('strength');
+  const [newCardioTracking, setNewCardioTracking] = useState<CardioTracking>('both');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -127,7 +130,13 @@ export default function AjustesScreen() {
     const name = newName.trim();
     if (!name) return;
     try {
-      await createExercise(db, name, newCorporal);
+      await createExercise(
+        db,
+        name,
+        newExerciseType === 'calisthenics' ? true : newCorporal,
+        newExerciseType,
+        newCardioTracking
+      );
       setNewName('');
       setNewCorporal(false);
       await load();
@@ -313,12 +322,14 @@ export default function AjustesScreen() {
 
           {(catalogExpanded ? exercises : exercises.slice(0, CATALOG_PREVIEW)).map((ex) => (
             <View key={ex.id} style={styles.exerciseRow}>
-              <MaterialCommunityIcons
-                name={ex.es_corporal ? 'human-handsup' : 'weight'}
-                size={20}
-                color={ex.es_corporal ? GymTheme.active : GymTheme.textMuted}
-              />
+              {(() => {
+                const type = getTrainingType(ex.exercise_type);
+                return <MaterialCommunityIcons name={type.icon} size={20} color={type.color} />;
+              })()}
               <Text style={styles.exerciseName}>{ex.name}</Text>
+              <Text style={[styles.tag, { color: getTrainingType(ex.exercise_type).color }]}>
+                {getTrainingType(ex.exercise_type).label}
+              </Text>
               {ex.es_corporal ? <Text style={styles.tag}>corporal</Text> : null}
               <Pressable hitSlop={8} onPress={() => handleDeleteExercise(ex)}>
                 <MaterialCommunityIcons name="trash-can-outline" size={20} color={GymTheme.danger} />
@@ -351,15 +362,59 @@ export default function AjustesScreen() {
             onSubmitEditing={handleAddExercise}
             returnKeyType="done"
           />
+          <View style={styles.typeSelector}>
+            {TRAINING_TYPES.map((type) => (
+              <Pressable
+                key={type.value}
+                style={[
+                  styles.typeChip,
+                  newExerciseType === type.value && {
+                    borderColor: type.color,
+                    backgroundColor: type.dimColor,
+                  },
+                ]}
+                onPress={() => {
+                  setNewExerciseType(type.value);
+                  if (type.value === 'calisthenics') setNewCorporal(true);
+                  if (type.value === 'cardio') setNewCorporal(false);
+                }}>
+                <Text style={[styles.typeChipText, newExerciseType === type.value && { color: type.color }]}>
+                  {type.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          {newExerciseType === 'cardio' ? (
+            <View style={styles.typeSelector}>
+              {([
+                ['duration', 'Tiempo'],
+                ['distance', 'Distancia'],
+                ['both', 'Tiempo + distancia'],
+              ] as const).map(([value, label]) => (
+                <Pressable
+                  key={value}
+                  style={[styles.metricChip, newCardioTracking === value && styles.metricChipActive]}
+                  onPress={() => setNewCardioTracking(value)}>
+                  <Text style={[styles.typeChipText, newCardioTracking === value && { color: GymTheme.cardio }]}>
+                    {label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
           <View style={styles.corporalRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
-              <Switch
-                value={newCorporal}
-                onValueChange={setNewCorporal}
-                trackColor={{ true: GymTheme.active, false: GymTheme.disabled }}
-                thumbColor={GymTheme.white}
-              />
-              <Text style={styles.cardSub}>Es corporal (peso + lastre)</Text>
+              {newExerciseType !== 'cardio' ? (
+                <>
+                  <Switch
+                    value={newCorporal}
+                    onValueChange={setNewCorporal}
+                    trackColor={{ true: GymTheme.active, false: GymTheme.disabled }}
+                    thumbColor={GymTheme.white}
+                  />
+                  <Text style={styles.cardSub}>Es corporal (peso + lastre)</Text>
+                </>
+              ) : null}
             </View>
             <Button title="Añadir" onPress={handleAddExercise} />
           </View>
@@ -514,6 +569,24 @@ const styles = StyleSheet.create({
   },
   expandText: { color: GymTheme.primary, fontSize: 14, fontWeight: '700' },
   corporalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  typeSelector: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  typeChip: {
+    borderWidth: 1,
+    borderColor: GymTheme.border,
+    borderRadius: Radius.pill,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 7,
+    backgroundColor: GymTheme.surfaceAlt,
+  },
+  metricChip: {
+    borderWidth: 1,
+    borderColor: GymTheme.border,
+    borderRadius: Radius.pill,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+  },
+  metricChipActive: { borderColor: GymTheme.cardio, backgroundColor: GymTheme.cardioDim },
+  typeChipText: { color: GymTheme.textMuted, fontSize: 12, fontWeight: '700' },
   noteActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   textarea: {
     backgroundColor: GymTheme.inputBg,

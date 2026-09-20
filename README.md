@@ -45,8 +45,8 @@ entrenamientos. **Todos los datos se guardan únicamente en el dispositivo**
 
 ## 🧱 Stack técnico
 
-- **Expo SDK 54** · React Native 0.81 · React 19 · TypeScript (modo estricto)
-- **Expo Router 6** (navegación basada en archivos, rutas tipadas)
+- **Expo SDK 57** · React Native 0.86 · React 19 · TypeScript (modo estricto)
+- **Expo Router 57** (navegación basada en archivos, rutas tipadas)
 - **expo-sqlite** (base de datos local)
 - **react-native-svg** (gráfico de 1RM)
 - **react-native-reanimated** + **react-native-gesture-handler** (animaciones/gestos del calendario)
@@ -115,7 +115,7 @@ npx expo start
 ```
 
 Escanea el QR con Expo Go. Todas las dependencias nativas usadas (SQLite, SVG,
-file-system, document-picker, sharing) están incluidas en Expo Go para SDK 54,
+file-system, document-picker, sharing) están incluidas en Expo Go para SDK 57,
 así que **no necesitas una build nativa para probar**.
 
 > **Primer arranque** (la base de datos empieza vacía):

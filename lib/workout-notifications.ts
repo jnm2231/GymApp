@@ -87,11 +87,18 @@ export async function scheduleWorkoutReminder(
   delayFromNowSeconds?: number
 ): Promise<void> {
   const lastSet = await db.getFirstAsync<{ last_ts: number | null }>(
-    `SELECT MAX(st.ts) AS last_ts
-       FROM sets st
-       JOIN session_exercises se ON se.id = st.session_exercise_id
-      WHERE se.session_id = ?`,
-    [sessionId]
+    `SELECT MAX(activity_ts) AS last_ts FROM (
+       SELECT st.ts AS activity_ts
+         FROM sets st
+         JOIN session_exercises se ON se.id = st.session_exercise_id
+        WHERE se.session_id = ?
+       UNION ALL
+       SELECT ce.ts AS activity_ts
+         FROM cardio_entries ce
+         JOIN session_exercises se ON se.id = ce.session_exercise_id
+        WHERE se.session_id = ?
+     )`,
+    [sessionId, sessionId]
   );
   if (!lastSet?.last_ts) return;
 

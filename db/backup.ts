@@ -15,6 +15,7 @@ const BACKUP_TABLES = [
   'sessions',
   'session_exercises',
   'sets',
+  'cardio_entries',
 ] as const;
 
 type BackupTable = (typeof BACKUP_TABLES)[number];

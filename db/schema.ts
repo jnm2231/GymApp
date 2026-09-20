@@ -3,7 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 /**
  * Versión del esquema. Se guarda con PRAGMA user_version para futuras migraciones.
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /**
  * Definición de tablas (Paso 1).
@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS exercises (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   name        TEXT    NOT NULL UNIQUE,
   es_corporal INTEGER NOT NULL DEFAULT 0,
+  exercise_type TEXT NOT NULL DEFAULT 'strength',
+  cardio_tracking TEXT NOT NULL DEFAULT 'both',
   created_at  INTEGER NOT NULL
 );
 
@@ -39,6 +41,7 @@ CREATE TABLE IF NOT EXISTS exercises (
 CREATE TABLE IF NOT EXISTS days (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   name       TEXT    NOT NULL,
+  training_type TEXT NOT NULL DEFAULT 'strength',
   created_at INTEGER NOT NULL
 );
 
@@ -61,6 +64,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   end_ts      INTEGER,
   user_weight REAL,
   status      TEXT    NOT NULL DEFAULT 'active',
+  day_type    TEXT    NOT NULL DEFAULT 'strength',
   FOREIGN KEY (day_id) REFERENCES days(id) ON DELETE SET NULL
 );
 
@@ -77,6 +81,8 @@ CREATE TABLE IF NOT EXISTS session_exercises (
   start_ts      INTEGER,
   end_ts        INTEGER,
   status        TEXT    NOT NULL DEFAULT 'pending',
+  exercise_type TEXT    NOT NULL DEFAULT 'strength',
+  cardio_tracking TEXT  NOT NULL DEFAULT 'both',
   FOREIGN KEY (session_id)  REFERENCES sessions(id)  ON DELETE CASCADE,
   FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE SET NULL
 );
@@ -107,6 +113,17 @@ CREATE TABLE IF NOT EXISTS body_measurements (
   recorded_at INTEGER NOT NULL
 );
 
+-- Resultado de un ejercicio cardiovascular dentro de una sesión.
+CREATE TABLE IF NOT EXISTS cardio_entries (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_exercise_id INTEGER NOT NULL UNIQUE,
+  duration_seconds    INTEGER,
+  distance_km         REAL,
+  notes               TEXT,
+  ts                  INTEGER NOT NULL,
+  FOREIGN KEY (session_exercise_id) REFERENCES session_exercises(id) ON DELETE CASCADE
+);
+
 -- Notas de Desarrollo (Backlog). EXCLUIDA de export/import.
 CREATE TABLE IF NOT EXISTS dev_notes (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -123,6 +140,7 @@ CREATE INDEX IF NOT EXISTS idx_sets_sess_ex            ON sets(session_exercise_
 CREATE INDEX IF NOT EXISTS idx_sessions_status         ON sessions(status);
 CREATE INDEX IF NOT EXISTS idx_sessions_start          ON sessions(start_ts);
 CREATE INDEX IF NOT EXISTS idx_body_measurements_date  ON body_measurements(recorded_at);
+CREATE INDEX IF NOT EXISTS idx_cardio_entries_exercise ON cardio_entries(session_exercise_id);
 `;
 
 /**
@@ -135,7 +153,7 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
   const current = row?.user_version ?? 0;
 
-  if (current < SCHEMA_VERSION) {
+  if (current < 2) {
     // Migración v1 -> v2: peso por serie. En instalaciones existentes la tabla
     // `sets` ya existe sin la columna `weight`, así que la añadimos con ALTER
     // (idempotente: solo si aún no está). Los datos previos quedan con NULL =
@@ -145,8 +163,43 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       await db.execAsync('ALTER TABLE sets ADD COLUMN weight REAL');
     }
 
-    await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   }
+
+  if (current < 4) {
+    const exerciseCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(exercises)');
+    if (!exerciseCols.some((c) => c.name === 'exercise_type')) {
+      await db.execAsync("ALTER TABLE exercises ADD COLUMN exercise_type TEXT NOT NULL DEFAULT 'strength'");
+    }
+    if (!exerciseCols.some((c) => c.name === 'cardio_tracking')) {
+      await db.execAsync("ALTER TABLE exercises ADD COLUMN cardio_tracking TEXT NOT NULL DEFAULT 'both'");
+    }
+
+    const dayCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(days)');
+    if (!dayCols.some((c) => c.name === 'training_type')) {
+      await db.execAsync("ALTER TABLE days ADD COLUMN training_type TEXT NOT NULL DEFAULT 'strength'");
+    }
+
+    const sessionCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(sessions)');
+    if (!sessionCols.some((c) => c.name === 'day_type')) {
+      await db.execAsync("ALTER TABLE sessions ADD COLUMN day_type TEXT NOT NULL DEFAULT 'strength'");
+    }
+
+    const sessionExerciseCols = await db.getAllAsync<{ name: string }>(
+      'PRAGMA table_info(session_exercises)'
+    );
+    if (!sessionExerciseCols.some((c) => c.name === 'exercise_type')) {
+      await db.execAsync(
+        "ALTER TABLE session_exercises ADD COLUMN exercise_type TEXT NOT NULL DEFAULT 'strength'"
+      );
+    }
+    if (!sessionExerciseCols.some((c) => c.name === 'cardio_tracking')) {
+      await db.execAsync(
+        "ALTER TABLE session_exercises ADD COLUMN cardio_tracking TEXT NOT NULL DEFAULT 'both'"
+      );
+    }
+  }
+
+  if (current < SCHEMA_VERSION) await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 
   // Semilla del peso del usuario si no existe.
   await db.runAsync(

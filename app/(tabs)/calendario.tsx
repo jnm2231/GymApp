@@ -18,6 +18,7 @@ import { Screen } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { CalendarSession, getMonthSessions } from '@/db/calendar';
 import { dateKey } from '@/lib/format';
+import { getTrainingType } from '@/lib/training-types';
 
 const MONTHS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -262,13 +263,16 @@ function MonthGrid({
                 </View>
                 {hasTraining ? (
                   <View style={styles.markers}>
-                    {visible.map((s, idx) => (
-                      <View key={idx} style={styles.mk}>
-                        <Text style={styles.mkText} numberOfLines={1}>
+                    {visible.map((s, idx) => {
+                      const type = getTrainingType(s.day_type);
+                      return (
+                      <View key={idx} style={[styles.mk, { backgroundColor: type.dimColor }]}>
+                        <Text style={[styles.mkText, { color: type.color }]} numberOfLines={1}>
                           {s.day_name}
                         </Text>
                       </View>
-                    ))}
+                      );
+                    })}
                     {moreCount > 0 ? <Text style={styles.mkMore}>+{moreCount} más</Text> : null}
                   </View>
                 ) : null}

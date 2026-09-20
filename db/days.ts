@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { Day, DayWithCount, Exercise } from './types';
+import type { Day, DayWithCount, Exercise, TrainingType } from './types';
 
 /** Lista de plantillas de día con el nº de ejercicios que las componen. */
 export async function listDaysWithCount(db: SQLiteDatabase): Promise<DayWithCount[]> {
@@ -45,12 +45,14 @@ async function replaceDayExercises(
 export async function createDay(
   db: SQLiteDatabase,
   name: string,
-  exerciseIds: number[]
+  exerciseIds: number[],
+  trainingType: TrainingType = 'strength'
 ): Promise<number> {
   let dayId = 0;
   await db.withTransactionAsync(async () => {
-    const res = await db.runAsync('INSERT INTO days (name, created_at) VALUES (?, ?)', [
+    const res = await db.runAsync('INSERT INTO days (name, training_type, created_at) VALUES (?, ?, ?)', [
       name.trim(),
+      trainingType,
       Date.now(),
     ]);
     dayId = res.lastInsertRowId;
@@ -63,10 +65,15 @@ export async function updateDay(
   db: SQLiteDatabase,
   id: number,
   name: string,
-  exerciseIds: number[]
+  exerciseIds: number[],
+  trainingType: TrainingType = 'strength'
 ): Promise<void> {
   await db.withTransactionAsync(async () => {
-    await db.runAsync('UPDATE days SET name = ? WHERE id = ?', [name.trim(), id]);
+    await db.runAsync('UPDATE days SET name = ?, training_type = ? WHERE id = ?', [
+      name.trim(),
+      trainingType,
+      id,
+    ]);
     await replaceDayExercises(db, id, exerciseIds);
   });
 }

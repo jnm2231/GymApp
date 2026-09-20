@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { ExerciseSet } from './types';
+import type { CardioEntry, CardioTracking, ExerciseSet, TrainingType } from './types';
 
 export interface ExerciseHistoryEntry {
   session_id: number;
@@ -11,7 +11,10 @@ export interface ExerciseHistoryEntry {
   weight: number | null; // peso global / lastre
   es_corporal: number;
   user_weight: number | null; // snapshot del peso del usuario en esa sesión
+  exercise_type: TrainingType;
+  cardio_tracking: CardioTracking;
   sets: ExerciseSet[];
+  cardio_entry: CardioEntry | null;
 }
 
 export interface PerformedExerciseSummary {
@@ -19,6 +22,7 @@ export interface PerformedExerciseSummary {
   name: string;
   timesPerformed: number;
   bestOneRepMax: number;
+  exerciseType: TrainingType;
 }
 
 /** Todos los ejercicios que aparecen al menos una vez en sesiones finalizadas. */
@@ -28,18 +32,24 @@ export async function getPerformedExerciseSummaries(
   return db.getAllAsync<PerformedExerciseSummary>(
     `SELECT se.exercise_id AS exerciseId,
             COALESCE(e.name, se.exercise_name) AS name,
+            MAX(se.exercise_type) AS exerciseType,
             COUNT(DISTINCT se.id) AS timesPerformed,
-            MAX(
-              (CASE WHEN se.es_corporal = 1
-                    THEN COALESCE(s.user_weight, 0) + COALESCE(st.weight, se.weight, 0)
-                    ELSE COALESCE(st.weight, se.weight, 0)
-               END) * (1 + st.reps / 30.0)
-            ) AS bestOneRepMax
+            MAX(COALESCE((
+              SELECT MAX(
+                (CASE WHEN se.es_corporal = 1
+                      THEN COALESCE(s.user_weight, 0) + COALESCE(st.weight, se.weight, 0)
+                      ELSE COALESCE(st.weight, se.weight, 0)
+                 END) * (1 + st.reps / 30.0)
+              ) FROM sets st WHERE st.session_exercise_id = se.id
+            ), 0)) AS bestOneRepMax
        FROM session_exercises se
        JOIN sessions s ON s.id = se.session_id
-       JOIN sets st ON st.session_exercise_id = se.id
        LEFT JOIN exercises e ON e.id = se.exercise_id
       WHERE s.status = 'finished'
+        AND (
+          EXISTS (SELECT 1 FROM sets st WHERE st.session_exercise_id = se.id)
+          OR EXISTS (SELECT 1 FROM cardio_entries ce WHERE ce.session_exercise_id = se.id)
+        )
       GROUP BY COALESCE(CAST(se.exercise_id AS TEXT), 'deleted:' || LOWER(se.exercise_name))
       ORDER BY name COLLATE NOCASE ASC`
   );
@@ -53,22 +63,32 @@ export async function getExerciseHistory(
   db: SQLiteDatabase,
   exerciseId: number
 ): Promise<ExerciseHistoryEntry[]> {
-  const rows = await db.getAllAsync<Omit<ExerciseHistoryEntry, 'sets'>>(
+  const rows = await db.getAllAsync<Omit<ExerciseHistoryEntry, 'sets' | 'cardio_entry'>>(
     `SELECT se.session_id            AS session_id,
             se.id                    AS session_exercise_id,
             s.day_name               AS day_name,
             s.start_ts               AS session_start_ts,
             se.start_ts              AS start_ts,
-            COALESCE((SELECT MAX(st.ts) FROM sets st
-                       WHERE st.session_exercise_id = se.id), se.end_ts) AS end_ts,
+            COALESCE((SELECT MAX(activity_ts) FROM (
+                        SELECT st.ts AS activity_ts FROM sets st
+                         WHERE st.session_exercise_id = se.id
+                        UNION ALL
+                        SELECT ce.ts AS activity_ts FROM cardio_entries ce
+                         WHERE ce.session_exercise_id = se.id
+                      )), se.end_ts) AS end_ts,
             se.weight                AS weight,
             se.es_corporal           AS es_corporal,
-            s.user_weight            AS user_weight
+            s.user_weight            AS user_weight,
+            se.exercise_type         AS exercise_type,
+            se.cardio_tracking       AS cardio_tracking
        FROM session_exercises se
        JOIN sessions s ON s.id = se.session_id
       WHERE se.exercise_id = ?
         AND s.status = 'finished'
-        AND EXISTS (SELECT 1 FROM sets st WHERE st.session_exercise_id = se.id)
+        AND (
+          EXISTS (SELECT 1 FROM sets st WHERE st.session_exercise_id = se.id)
+          OR EXISTS (SELECT 1 FROM cardio_entries ce WHERE ce.session_exercise_id = se.id)
+        )
       ORDER BY s.start_ts ASC`,
     [exerciseId]
   );
@@ -79,7 +99,11 @@ export async function getExerciseHistory(
       'SELECT * FROM sets WHERE session_exercise_id = ? ORDER BY set_index ASC',
       [r.session_exercise_id]
     );
-    entries.push({ ...r, sets });
+    const cardioEntry = await db.getFirstAsync<CardioEntry>(
+      'SELECT * FROM cardio_entries WHERE session_exercise_id = ?',
+      [r.session_exercise_id]
+    );
+    entries.push({ ...r, sets, cardio_entry: cardioEntry ?? null });
   }
   return entries;
 }

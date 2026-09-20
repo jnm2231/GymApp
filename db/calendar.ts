@@ -1,12 +1,13 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { dateKey } from '@/lib/format';
-import type { ExerciseSet } from './types';
+import type { CardioEntry, CardioTracking, ExerciseSet, TrainingType } from './types';
 
 export interface CalendarSession {
   session_id: number;
   day_name: string;
   start_ts: number;
   end_ts: number | null;
+  day_type: TrainingType;
 }
 
 export interface CalendarDayDetailExercise {
@@ -18,6 +19,9 @@ export interface CalendarDayDetailExercise {
   start_ts: number | null;
   end_ts: number | null;
   sets: ExerciseSet[];
+  exercise_type: TrainingType;
+  cardio_tracking: CardioTracking;
+  cardio_entry: CardioEntry | null;
 }
 
 export interface CalendarDayBlock extends CalendarSession {
@@ -34,11 +38,16 @@ export async function getMonthSessions(
   endTs: number
 ): Promise<Record<string, CalendarSession[]>> {
   const rows = await db.getAllAsync<CalendarSession>(
-    `SELECT id AS session_id, day_name, start_ts,
-            COALESCE((SELECT MAX(st.ts)
-                        FROM sets st
+    `SELECT id AS session_id, day_name, day_type, start_ts,
+            COALESCE((SELECT MAX(activity_ts) FROM (
+                        SELECT st.ts AS activity_ts FROM sets st
                         JOIN session_exercises se ON se.id = st.session_exercise_id
-                       WHERE se.session_id = sessions.id), end_ts) AS end_ts
+                        WHERE se.session_id = sessions.id
+                        UNION ALL
+                        SELECT ce.ts AS activity_ts FROM cardio_entries ce
+                        JOIN session_exercises se ON se.id = ce.session_exercise_id
+                        WHERE se.session_id = sessions.id
+                      )), end_ts) AS end_ts
        FROM sessions
       WHERE status = 'finished' AND start_ts >= ? AND start_ts < ?
       ORDER BY start_ts ASC`,
@@ -64,11 +73,16 @@ export async function getDayDetail(
   endTs: number
 ): Promise<CalendarDayBlock[]> {
   const sessions = await db.getAllAsync<CalendarSession>(
-    `SELECT id AS session_id, day_name, start_ts,
-            COALESCE((SELECT MAX(st.ts)
-                        FROM sets st
+    `SELECT id AS session_id, day_name, day_type, start_ts,
+            COALESCE((SELECT MAX(activity_ts) FROM (
+                        SELECT st.ts AS activity_ts FROM sets st
                         JOIN session_exercises se ON se.id = st.session_exercise_id
-                       WHERE se.session_id = sessions.id), end_ts) AS end_ts
+                        WHERE se.session_id = sessions.id
+                        UNION ALL
+                        SELECT ce.ts AS activity_ts FROM cardio_entries ce
+                        JOIN session_exercises se ON se.id = ce.session_exercise_id
+                        WHERE se.session_id = sessions.id
+                      )), end_ts) AS end_ts
        FROM sessions
       WHERE status = 'finished' AND start_ts >= ? AND start_ts < ?
       ORDER BY start_ts ASC`,
@@ -77,11 +91,18 @@ export async function getDayDetail(
 
   const blocks: CalendarDayBlock[] = [];
   for (const s of sessions) {
-    const exercises = await db.getAllAsync<Omit<CalendarDayDetailExercise, 'sets'>>(
+    const exercises = await db.getAllAsync<
+      Omit<CalendarDayDetailExercise, 'sets' | 'cardio_entry'>
+    >(
       `SELECT se.id AS session_exercise_id, se.exercise_id, se.exercise_name, se.es_corporal,
-              se.weight, se.start_ts,
-              COALESCE((SELECT MAX(st.ts) FROM sets st
-                         WHERE st.session_exercise_id = se.id), se.end_ts) AS end_ts
+              se.weight, se.start_ts, se.exercise_type, se.cardio_tracking,
+              COALESCE((SELECT MAX(activity_ts) FROM (
+                          SELECT st.ts AS activity_ts FROM sets st
+                          WHERE st.session_exercise_id = se.id
+                          UNION ALL
+                          SELECT ce.ts AS activity_ts FROM cardio_entries ce
+                          WHERE ce.session_exercise_id = se.id
+                        )), se.end_ts) AS end_ts
          FROM session_exercises AS se
          WHERE se.session_id = ? AND se.start_ts IS NOT NULL
         ORDER BY se.start_ts ASC, se.position ASC`,
@@ -93,7 +114,11 @@ export async function getDayDetail(
         'SELECT * FROM sets WHERE session_exercise_id = ? ORDER BY set_index ASC',
         [e.session_exercise_id]
       );
-      withSets.push({ ...e, sets });
+      const cardioEntry = await db.getFirstAsync<CardioEntry>(
+        'SELECT * FROM cardio_entries WHERE session_exercise_id = ?',
+        [e.session_exercise_id]
+      );
+      withSets.push({ ...e, sets, cardio_entry: cardioEntry ?? null });
     }
     blocks.push({ ...s, exercises: withSets });
   }

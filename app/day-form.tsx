@@ -18,7 +18,8 @@ import { Button, EmptyState } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { createDay, getDay, getDayExercises, updateDay } from '@/db/days';
 import { listExercises } from '@/db/exercises';
-import type { Exercise } from '@/db/types';
+import type { Exercise, TrainingType } from '@/db/types';
+import { getTrainingType, TRAINING_TYPES } from '@/lib/training-types';
 
 export default function DayFormScreen() {
   const db = useSQLiteContext();
@@ -30,13 +31,18 @@ export default function DayFormScreen() {
   const [name, setName] = useState('');
   const [catalog, setCatalog] = useState<Exercise[]>([]);
   const [selected, setSelected] = useState<number[]>([]); // en orden de selección
+  const [trainingType, setTrainingType] = useState<TrainingType>('strength');
+  const typeConfig = getTrainingType(trainingType);
 
   useEffect(() => {
     (async () => {
       setCatalog(await listExercises(db));
       if (isEdit) {
         const day = await getDay(db, dayId);
-        if (day) setName(day.name);
+        if (day) {
+          setName(day.name);
+          setTrainingType(day.training_type);
+        }
         const exs = await getDayExercises(db, dayId);
         setSelected(exs.map((e) => e.id));
       }
@@ -58,9 +64,9 @@ export default function DayFormScreen() {
       return;
     }
     if (isEdit) {
-      await updateDay(db, dayId, trimmed, selected);
+      await updateDay(db, dayId, trimmed, selected, trainingType);
     } else {
-      await createDay(db, trimmed, selected);
+      await createDay(db, trimmed, selected, trainingType);
     }
     router.back();
   };
@@ -81,26 +87,55 @@ export default function DayFormScreen() {
           returnKeyType="done"
         />
 
+        <Text style={[styles.label, { marginTop: Spacing.md }]}>Tipo de entrenamiento</Text>
+        <View style={styles.typeRow}>
+          {TRAINING_TYPES.map((type) => (
+            <Pressable
+              key={type.value}
+              style={[
+                styles.typeChip,
+                trainingType === type.value && { borderColor: type.color, backgroundColor: type.dimColor },
+              ]}
+              onPress={() => {
+                if (trainingType === type.value) return;
+                setTrainingType(type.value);
+                setSelected([]);
+              }}>
+              <MaterialCommunityIcons name={type.icon} size={17} color={type.color} />
+              <Text style={[styles.typeText, trainingType === type.value && { color: type.color }]}>
+                {type.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
         <Text style={[styles.label, { marginTop: Spacing.lg }]}>
           Ejercicios {selected.length > 0 ? `(${selected.length})` : ''}
         </Text>
         <Text style={styles.hint}>El número indica el orden dentro del día.</Text>
 
-        {catalog.length === 0 ? (
+        {catalog.filter((ex) => ex.exercise_type === trainingType).length === 0 ? (
           <EmptyState
-            title="No hay ejercicios en el catálogo"
-            subtitle="Ve a Ajustes → Catálogo de ejercicios para crear algunos."
+            title={`No hay ejercicios de ${getTrainingType(trainingType).label.toLowerCase()}`}
+            subtitle="Ve a Ajustes → Catálogo de ejercicios para crear alguno."
           />
         ) : (
-          catalog.map((ex) => {
+          catalog.filter((ex) => ex.exercise_type === trainingType).map((ex) => {
             const order = selected.indexOf(ex.id);
             const isSel = order !== -1;
             return (
               <Pressable
                 key={ex.id}
-                style={[styles.exRow, isSel && styles.exRowSel]}
+                style={[
+                  styles.exRow,
+                  isSel && { borderColor: typeConfig.color, backgroundColor: typeConfig.dimColor },
+                ]}
                 onPress={() => toggle(ex.id)}>
-                <View style={[styles.checkbox, isSel && styles.checkboxSel]}>
+                <View
+                  style={[
+                    styles.checkbox,
+                    isSel && { backgroundColor: typeConfig.color, borderColor: typeConfig.color },
+                  ]}>
                   {isSel ? (
                     <Text style={styles.orderNum}>{order + 1}</Text>
                   ) : (
@@ -131,6 +166,19 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.lg, paddingBottom: Spacing.xxl, gap: Spacing.sm },
   label: { color: GymTheme.text, fontSize: 15, fontWeight: '700' },
   hint: { color: GymTheme.textMuted, fontSize: 12, marginBottom: Spacing.xs },
+  typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  typeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderColor: GymTheme.border,
+    borderRadius: Radius.pill,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    backgroundColor: GymTheme.surface,
+  },
+  typeText: { color: GymTheme.textMuted, fontSize: 12, fontWeight: '700' },
   input: {
     backgroundColor: GymTheme.inputBg,
     borderWidth: 1,
@@ -151,7 +199,6 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     padding: Spacing.md,
   },
-  exRowSel: { borderColor: GymTheme.primary, backgroundColor: GymTheme.surfaceAlt },
   checkbox: {
     width: 28,
     height: 28,
@@ -162,7 +209,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkboxSel: { backgroundColor: GymTheme.primary, borderColor: GymTheme.primary },
   orderNum: { color: '#0C0C0E', fontWeight: '800', fontSize: 14 },
   exName: { color: GymTheme.text, fontSize: 15, flex: 1, fontWeight: '500' },
   tag: {
