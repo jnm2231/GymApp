@@ -1,6 +1,12 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { dateKey } from '@/lib/format';
-import type { CardioEntry, CardioTracking, ExerciseSet, TrainingType } from './types';
+import type {
+  CardioEntry,
+  CardioTracking,
+  ExerciseSet,
+  ExerciseTracking,
+  TrainingType,
+} from './types';
 
 export interface CalendarSession {
   session_id: number;
@@ -21,6 +27,7 @@ export interface CalendarDayDetailExercise {
   sets: ExerciseSet[];
   exercise_type: TrainingType;
   cardio_tracking: CardioTracking;
+  tracking_mode: ExerciseTracking;
   cardio_entry: CardioEntry | null;
 }
 
@@ -95,7 +102,7 @@ export async function getDayDetail(
       Omit<CalendarDayDetailExercise, 'sets' | 'cardio_entry'>
     >(
       `SELECT se.id AS session_exercise_id, se.exercise_id, se.exercise_name, se.es_corporal,
-              se.weight, se.start_ts, se.exercise_type, se.cardio_tracking,
+              se.weight, se.start_ts, se.exercise_type, se.cardio_tracking, se.tracking_mode,
               COALESCE((SELECT MAX(activity_ts) FROM (
                           SELECT st.ts AS activity_ts FROM sets st
                           WHERE st.session_exercise_id = se.id

@@ -27,13 +27,22 @@ publicar una versión.
   fecha de nacimiento, calculando la edad automáticamente. Se puede activar un
   recordatorio semanal que se reinicia siete días después de cada nuevo peso.
   - *Modelo de datos:* nueva tabla `body_measurements` y esquema v3.
-- **Días de musculación, cardio y calistenia.** Las plantillas y sus sesiones se
+- **Días de musculación, cardio y corporal.** Las plantillas y sus sesiones se
   clasifican por tipo y se distinguen por color: musculación en naranja, cardio
-  en azul y calistenia en verde. Los ejercicios de cardio pueden configurarse
+  en azul y corporal en verde. Los ejercicios de cardio pueden configurarse
   para registrar tiempo, distancia o ambos, además de notas, y sus resultados
   aparecen en el calendario y el histórico.
   - *Modelo de datos:* tipos fotografiados en plantillas y sesiones, nueva tabla
     `cardio_entries` y esquema v4.
+- **Días con ejercicios de cualquier tipo.** Una misma plantilla puede mezclar
+  ejercicios de musculación, cardio y corporal. El selector los agrupa en
+  desplegables del color correspondiente, dejando primero y abierto el tipo
+  principal del día.
+- **Series de aguante cronometradas.** Los ejercicios corporales pueden usar
+  repeticiones o aguante. En las series de aguante se inicia y detiene un
+  cronómetro, se conserva la duración y se calcula el descanso entre series.
+  - *Modelo de datos:* modo de seguimiento en catálogo y sesiones, inicio de
+    cronómetro persistente, duración por serie y esquema v5.
 - **Crear ejercicios al preparar un día.** La creación y edición de días permite
   añadir un ejercicio del tipo correspondiente, configurarlo y seleccionarlo al
   instante sin tener que pasar antes por Ajustes.

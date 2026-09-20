@@ -2,6 +2,7 @@
 
 export type TrainingType = 'strength' | 'cardio' | 'calisthenics';
 export type CardioTracking = 'duration' | 'distance' | 'both';
+export type ExerciseTracking = 'reps' | 'hold';
 
 export interface Exercise {
   id: number;
@@ -9,6 +10,7 @@ export interface Exercise {
   es_corporal: number; // 0 = carga externa, 1 = peso corporal (+ lastre)
   exercise_type: TrainingType;
   cardio_tracking: CardioTracking;
+  tracking_mode: ExerciseTracking;
   created_at: number;
 }
 
@@ -55,6 +57,8 @@ export interface SessionExercise {
   status: SessionExerciseStatus;
   exercise_type: TrainingType;
   cardio_tracking: CardioTracking;
+  tracking_mode: ExerciseTracking;
+  timer_started_ts: number | null;
 }
 
 export interface ExerciseSet {
@@ -65,6 +69,7 @@ export interface ExerciseSet {
   ts: number; // ms al confirmar el tick
   rest_seconds: number | null; // descanso respecto a la serie anterior (NULL en la 1ª)
   weight: number | null; // peso de ESTA serie (kg). NULL = hereda el peso global del ejercicio.
+  duration_seconds: number | null; // duración de una serie de aguante; NULL para repeticiones
 }
 
 export interface CardioEntry {

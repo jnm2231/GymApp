@@ -24,7 +24,7 @@ export const TRAINING_TYPES: {
   },
   {
     value: 'calisthenics',
-    label: 'Calistenia',
+    label: 'Corporal',
     color: GymTheme.active,
     dimColor: GymTheme.activeDim,
     icon: 'human-handsup',

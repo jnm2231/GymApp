@@ -225,7 +225,6 @@ export function ExerciseBlock({
                 <MaterialCommunityIcons name="plus-circle-outline" size={16} color={GymTheme.primary} />
               ) : null}
               <Text style={styles.selName}>{block.exercise_name}</Text>
-              {block.es_corporal ? <Text style={styles.tag}>corporal</Text> : null}
             </View>
             <Text style={styles.selMeta}>
               {block.weight != null ? `${block.weight} kg · ` : ''}
@@ -261,7 +260,6 @@ export function ExerciseBlock({
               <MaterialCommunityIcons name="plus-circle-outline" size={16} color={GymTheme.primary} />
             ) : null}
             <Text style={styles.name}>{block.exercise_name}</Text>
-            {block.es_corporal ? <Text style={styles.tag}>corporal</Text> : null}
           </View>
           {(block.start_ts || block.end_ts) && (
             <Text style={styles.times}>

@@ -86,6 +86,13 @@ export async function scheduleWorkoutReminder(
   sessionId: number,
   delayFromNowSeconds?: number
 ): Promise<void> {
+  const runningTimer = await db.getFirstAsync<{ count: number }>(
+    `SELECT COUNT(*) AS count FROM session_exercises
+      WHERE session_id = ? AND timer_started_ts IS NOT NULL`,
+    [sessionId]
+  );
+  if ((runningTimer?.count ?? 0) > 0) return;
+
   const lastSet = await db.getFirstAsync<{ last_ts: number | null }>(
     `SELECT MAX(activity_ts) AS last_ts FROM (
        SELECT st.ts AS activity_ts

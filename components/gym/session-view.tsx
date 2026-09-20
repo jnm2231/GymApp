@@ -7,6 +7,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useAlert } from '@/components/gym/alert';
 import { CardioExerciseBlock } from '@/components/gym/cardio-exercise-block';
 import { ExerciseBlock } from '@/components/gym/exercise-block';
+import { HoldExerciseBlock } from '@/components/gym/hold-exercise-block';
 import { Button, Loading, Screen } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { useSession } from '@/context/session-context';
@@ -177,7 +178,7 @@ export function SessionView() {
 
   const openPicker = async () => {
     const exercises = await listExercises(db);
-    setCatalog(exercises.filter((exercise) => exercise.exercise_type === session.day_type));
+    setCatalog(exercises);
     setPickerOpen(true);
   };
 
@@ -189,7 +190,8 @@ export function SessionView() {
       ex.name,
       ex.es_corporal === 1,
       ex.exercise_type,
-      ex.cardio_tracking
+      ex.cardio_tracking,
+      ex.tracking_mode
     );
     setPickerOpen(false);
     await load();
@@ -247,6 +249,19 @@ export function SessionView() {
                 onPostpone={() => setFocusedId(null)}
                 canFocus={focusedId == null}
               />
+            ) : b.tracking_mode === 'hold' ? (
+              <HoldExerciseBlock
+                block={b}
+                isCurrent={b.id === focusedId}
+                sessionId={session.id}
+                onChanged={load}
+                onOpenHistory={(exId) =>
+                  router.push({ pathname: '/exercise/[id]', params: { id: String(exId) } })
+                }
+                onFocus={() => setFocusedId(b.id)}
+                onPostpone={() => setFocusedId(null)}
+                canFocus={focusedId == null}
+              />
             ) : (
             <ExerciseBlock
               block={b}
@@ -298,7 +313,13 @@ export function SessionView() {
               {catalog.map((ex) => (
                 <Pressable key={ex.id} style={styles.modalRow} onPress={() => pickAdditional(ex)}>
                   <MaterialCommunityIcons
-                    name={ex.exercise_type === 'cardio' ? 'run-fast' : ex.es_corporal ? 'human-handsup' : 'weight'}
+                    name={
+                      ex.exercise_type === 'cardio'
+                        ? 'run-fast'
+                        : ex.tracking_mode === 'hold'
+                          ? 'timer-outline'
+                          : getTrainingType(ex.exercise_type).icon
+                    }
                     size={18}
                     color={getTrainingType(ex.exercise_type).color}
                   />

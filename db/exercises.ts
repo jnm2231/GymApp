@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { CardioTracking, Exercise, TrainingType } from './types';
+import type { CardioTracking, Exercise, ExerciseTracking, TrainingType } from './types';
 
 /** Catálogo global de ejercicios, ordenado alfabéticamente. */
 export async function listExercises(db: SQLiteDatabase): Promise<Exercise[]> {
@@ -9,15 +9,22 @@ export async function listExercises(db: SQLiteDatabase): Promise<Exercise[]> {
 export async function createExercise(
   db: SQLiteDatabase,
   name: string,
-  esCorporal: boolean,
   exerciseType: TrainingType = 'strength',
-  cardioTracking: CardioTracking = 'both'
+  cardioTracking: CardioTracking = 'both',
+  trackingMode: ExerciseTracking = 'reps'
 ): Promise<number> {
   const res = await db.runAsync(
     `INSERT INTO exercises
-       (name, es_corporal, exercise_type, cardio_tracking, created_at)
-     VALUES (?, ?, ?, ?, ?)`,
-    [name.trim(), esCorporal ? 1 : 0, exerciseType, cardioTracking, Date.now()]
+       (name, es_corporal, exercise_type, cardio_tracking, tracking_mode, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [
+      name.trim(),
+      exerciseType === 'calisthenics' ? 1 : 0,
+      exerciseType,
+      cardioTracking,
+      exerciseType === 'calisthenics' ? trackingMode : 'reps',
+      Date.now(),
+    ]
   );
   return res.lastInsertRowId;
 }
@@ -26,19 +33,20 @@ export async function updateExercise(
   db: SQLiteDatabase,
   id: number,
   name: string,
-  esCorporal: boolean,
   exerciseType: TrainingType = 'strength',
-  cardioTracking: CardioTracking = 'both'
+  cardioTracking: CardioTracking = 'both',
+  trackingMode: ExerciseTracking = 'reps'
 ): Promise<void> {
   await db.runAsync(
     `UPDATE exercises
-        SET name = ?, es_corporal = ?, exercise_type = ?, cardio_tracking = ?
+        SET name = ?, es_corporal = ?, exercise_type = ?, cardio_tracking = ?, tracking_mode = ?
       WHERE id = ?`,
     [
     name.trim(),
-    esCorporal ? 1 : 0,
+    exerciseType === 'calisthenics' ? 1 : 0,
     exerciseType,
     cardioTracking,
+    exerciseType === 'calisthenics' ? trackingMode : 'reps',
     id,
     ]
   );

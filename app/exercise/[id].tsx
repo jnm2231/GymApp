@@ -9,7 +9,14 @@ import { EmptyState, Loading } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { ExerciseHistoryEntry, getExerciseHistory } from '@/db/history';
 import { averageOneRepMax } from '@/lib/calc';
-import { formatCardioSummary, formatDate, formatDuration, formatHM, formatRest } from '@/lib/format';
+import {
+  formatCardioSummary,
+  formatClock,
+  formatDate,
+  formatDuration,
+  formatHM,
+  formatRest,
+} from '@/lib/format';
 
 export default function ExerciseDetailScreen() {
   const db = useSQLiteContext();
@@ -40,6 +47,7 @@ export default function ExerciseDetailScreen() {
     label: shortDate(h.session_start_ts),
   }));
   const isCardio = history[0]?.exercise_type === 'cardio';
+  const isHold = history[0]?.tracking_mode === 'hold';
 
   // Registros más recientes primero.
   const records = [...history].reverse();
@@ -51,7 +59,7 @@ export default function ExerciseDetailScreen() {
         {history.length === 0 ? (
           <EmptyState
             title="Sin registros todavía"
-            subtitle="Cuando entrenes este ejercicio aparecerá aquí tu progreso de 1RM."
+            subtitle="Cuando entrenes este ejercicio aparecerán aquí sus registros."
           />
         ) : (
           <>
@@ -60,7 +68,7 @@ export default function ExerciseDetailScreen() {
               <Text style={styles.summaryValue}>{history.length}</Text>
               <Text style={styles.summaryLabel}>{history.length === 1 ? 'vez realizado' : 'veces realizado'}</Text>
             </View>
-            {!isCardio ? (
+            {!isCardio && !isHold ? (
             <View style={styles.card}>
               <Text style={styles.cardTitle}>1RM promedio</Text>
               <Text style={styles.cardSub}>Media del 1RM de todas las series de cada día.</Text>
@@ -91,6 +99,31 @@ function RecordCard({ entry, name }: { entry: ExerciseHistoryEntry; name: string
           {formatCardioSummary(entry.cardio_entry?.duration_seconds, entry.cardio_entry?.distance_km)}
         </Text>
         {entry.cardio_entry?.notes ? <Text style={styles.recordName}>{entry.cardio_entry.notes}</Text> : null}
+      </View>
+    );
+  }
+  if (entry.tracking_mode === 'hold') {
+    return (
+      <View style={styles.record}>
+        <View style={styles.recordHeader}>
+          <Text style={styles.recordDate}>{formatDate(entry.session_start_ts)}</Text>
+          <Text style={styles.recordTime}>
+            {formatHM(entry.start_ts)} - {formatHM(entry.end_ts)}
+          </Text>
+        </View>
+        <Text style={styles.recordName}>{name} · Aguante</Text>
+        <View style={styles.repsList}>
+          {entry.sets.map((set) => (
+            <View key={set.id} style={styles.repPill}>
+              <Text style={[styles.repValue, { color: GymTheme.active }]}>
+                {formatClock(set.duration_seconds ?? 0)}
+              </Text>
+              <Text style={styles.repRest}>
+                {set.rest_seconds == null ? 'inicio' : `descanso ${formatRest(set.rest_seconds)}`}
+              </Text>
+            </View>
+          ))}
+        </View>
       </View>
     );
   }

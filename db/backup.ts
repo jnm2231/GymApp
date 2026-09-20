@@ -77,5 +77,15 @@ export async function restoreBackup(db: SQLiteDatabase, data: unknown): Promise<
         );
       }
     }
+
+    // Las copias anteriores a v5 guardaban los ejercicios de peso corporal
+    // como un indicador dentro de Musculación. Al restaurarlas, aplicamos la
+    // misma normalización que la migración del esquema.
+    await db.runAsync(
+      "UPDATE exercises SET exercise_type = 'calisthenics' WHERE es_corporal = 1"
+    );
+    await db.runAsync(
+      "UPDATE session_exercises SET exercise_type = 'calisthenics' WHERE es_corporal = 1"
+    );
   });
 }

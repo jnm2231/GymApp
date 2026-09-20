@@ -3,7 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 /**
  * Versión del esquema. Se guarda con PRAGMA user_version para futuras migraciones.
  */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /**
  * Definición de tablas (Paso 1).
@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS exercises (
   es_corporal INTEGER NOT NULL DEFAULT 0,
   exercise_type TEXT NOT NULL DEFAULT 'strength',
   cardio_tracking TEXT NOT NULL DEFAULT 'both',
+  tracking_mode TEXT NOT NULL DEFAULT 'reps',
   created_at  INTEGER NOT NULL
 );
 
@@ -83,6 +84,8 @@ CREATE TABLE IF NOT EXISTS session_exercises (
   status        TEXT    NOT NULL DEFAULT 'pending',
   exercise_type TEXT    NOT NULL DEFAULT 'strength',
   cardio_tracking TEXT  NOT NULL DEFAULT 'both',
+  tracking_mode TEXT    NOT NULL DEFAULT 'reps',
+  timer_started_ts INTEGER,
   FOREIGN KEY (session_id)  REFERENCES sessions(id)  ON DELETE CASCADE,
   FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE SET NULL
 );
@@ -97,6 +100,7 @@ CREATE TABLE IF NOT EXISTS sets (
   ts                  INTEGER NOT NULL,
   rest_seconds        INTEGER,
   weight              REAL,
+  duration_seconds    INTEGER,
   FOREIGN KEY (session_exercise_id) REFERENCES session_exercises(id) ON DELETE CASCADE
 );
 
@@ -197,6 +201,38 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
         "ALTER TABLE session_exercises ADD COLUMN cardio_tracking TEXT NOT NULL DEFAULT 'both'"
       );
     }
+  }
+
+  if (current < 5) {
+    const exerciseCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(exercises)');
+    if (!exerciseCols.some((c) => c.name === 'tracking_mode')) {
+      await db.execAsync("ALTER TABLE exercises ADD COLUMN tracking_mode TEXT NOT NULL DEFAULT 'reps'");
+    }
+
+    const sessionExerciseCols = await db.getAllAsync<{ name: string }>(
+      'PRAGMA table_info(session_exercises)'
+    );
+    if (!sessionExerciseCols.some((c) => c.name === 'tracking_mode')) {
+      await db.execAsync(
+        "ALTER TABLE session_exercises ADD COLUMN tracking_mode TEXT NOT NULL DEFAULT 'reps'"
+      );
+    }
+    if (!sessionExerciseCols.some((c) => c.name === 'timer_started_ts')) {
+      await db.execAsync('ALTER TABLE session_exercises ADD COLUMN timer_started_ts INTEGER');
+    }
+
+    const setsCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(sets)');
+    if (!setsCols.some((c) => c.name === 'duration_seconds')) {
+      await db.execAsync('ALTER TABLE sets ADD COLUMN duration_seconds INTEGER');
+    }
+
+    // El antiguo indicador "corporal" pasa a ser una categoría de ejercicio.
+    // Los snapshots históricos se actualizan también para que se muestren con
+    // el nuevo nombre, sin alterar pesos, series ni cálculos previos.
+    await db.execAsync(
+      "UPDATE exercises SET exercise_type = 'calisthenics' WHERE es_corporal = 1;" +
+      "UPDATE session_exercises SET exercise_type = 'calisthenics' WHERE es_corporal = 1;"
+    );
   }
 
   if (current < SCHEMA_VERSION) await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);

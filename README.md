@@ -20,7 +20,7 @@ entrenamientos. **Todos los datos se guardan únicamente en el dispositivo**
 | **Sesión activa** | Bloques de ejercicio con **peso global por ejercicio**, registro de **series inline** (tick verde) y **cálculo del descanso** respecto a la serie anterior. El ejercicio activo se resalta en verde; puedes **cambiar el orden libremente**, **posponer** un ejercicio empezado y añadir **ejercicios adicionales**. Al terminar un bloque, las series se **colapsan** (`12-12-12-10`). Controles globales **Guardar** (pausar) y **Fin**. |
 | **Calendario** | Vista mensual a pantalla completa con marcadores del tipo de día entrenado, swipe animado entre meses y selector rápido de mes/año. Drill-down: día → tipo de día → ejercicios → histórico. |
 | **Histórico** | Drill-down día → ejercicio → gráfico de **1RM promedio** (eje X equiespaciado) y lista de registros con peso, repeticiones y descansos. |
-| **Ajustes** | Catálogo de ejercicios (con flag **corporal**), peso del usuario, **copias de seguridad** (exportar/importar `.json`) y notas de desarrollo. |
+| **Ajustes** | Catálogo de ejercicios por tipo, peso del usuario, **copias de seguridad** (exportar/importar `.json`) y notas de desarrollo. |
 
 ### Reglas de negocio destacadas
 
@@ -28,9 +28,9 @@ entrenamientos. **Todos los datos se guardan únicamente en el dispositivo**
 - **Cronómetro por timestamps.** No hay temporizador en segundo plano: cada serie
   guarda su hora exacta y el descanso se calcula como la diferencia con la serie
   inmediatamente anterior (la 1.ª no tiene descanso).
-- **Ejercicios corporales.** Si un ejercicio es corporal (p. ej. Dominadas), el
-  1RM usa `peso_usuario + lastre`. El peso del usuario se guarda como _snapshot_
-  en cada sesión para que el histórico no cambie si luego lo modificas.
+- **Ejercicios corporales.** Los ejercicios de tipo Corporal incluyen el peso
+  propio en el 1RM y pueden configurarse por repeticiones o por aguante
+  cronometrado. El peso del usuario se guarda como _snapshot_ en cada sesión.
 - **Una sesión a la vez.** Mientras haya un entrenamiento activo o en pausa, la
   pestaña Entreno muestra la sesión (no se puede iniciar otro día).
 
@@ -93,11 +93,11 @@ reference/                Material de referencia (NO se compila)
 
 | Tabla | Descripción |
 |-------|-------------|
-| `exercises` | Catálogo global. Incluye `es_corporal`. |
+| `exercises` | Catálogo global con tipo y modo de seguimiento. |
 | `days` / `day_exercises` | Plantillas de día y sus ejercicios (ordenados). |
 | `sessions` | Sesión real: `start_ts`, `end_ts`, `user_weight` (snapshot), `status`. |
 | `session_exercises` | Bloque de ejercicio de una sesión. **`weight` = peso global.** |
-| `sets` | Series: `reps`, `ts` y `rest_seconds` (descanso calculado). |
+| `sets` | Series: repeticiones o duración, `ts` y descanso calculado. |
 | `settings` | Clave-valor (incluye `user_weight`). |
 | `dev_notes` | Notas de desarrollo. **Se excluye de las copias de seguridad.** |
 
@@ -119,7 +119,7 @@ file-system, document-picker, sharing) están incluidas en Expo Go para SDK 57,
 así que **no necesitas una build nativa para probar**.
 
 > **Primer arranque** (la base de datos empieza vacía):
-> 1. **Ajustes** → escribe tu peso y crea algunos ejercicios (marca *corporal* en p. ej. Dominadas).
+> 1. **Ajustes** → escribe tu peso y crea ejercicios de musculación, cardio o corporal.
 > 2. **Ajustes → Nuevo día** (o el botón *Nuevo día* del Inicio) → nombra el día y selecciona ejercicios.
 > 3. **Entreno** → *Empezar* → confirma el peso, registra series con el tick ✓, *Terminado*, *Fin*.
 > 4. Mira **Histórico** y **Calendario**.

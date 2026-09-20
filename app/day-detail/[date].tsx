@@ -7,7 +7,14 @@ import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'reac
 import { EmptyState, Loading } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { CalendarDayBlock, getDayDetail } from '@/db/calendar';
-import { formatCardioSummary, formatDate, formatDuration, formatHM, formatRest } from '@/lib/format';
+import {
+  formatCardioSummary,
+  formatClock,
+  formatDate,
+  formatDuration,
+  formatHM,
+  formatRest,
+} from '@/lib/format';
 import { getTrainingType } from '@/lib/training-types';
 
 export default function DayDetailScreen() {
@@ -104,6 +111,8 @@ export default function DayDetailScreen() {
                 <Text style={[styles.exWeight, ex.exercise_type === 'cardio' && { color: GymTheme.cardio }]}>
                   {ex.exercise_type === 'cardio'
                     ? formatCardioSummary(ex.cardio_entry?.duration_seconds, ex.cardio_entry?.distance_km)
+                    : ex.tracking_mode === 'hold'
+                      ? `${ex.sets.length} ${ex.sets.length === 1 ? 'serie' : 'series'}`
                     : variableWeight
                       ? 'pesos variables'
                       : `${ex.weight ?? 0} kg`}
@@ -116,8 +125,10 @@ export default function DayDetailScreen() {
                 <View style={styles.repsList}>
                   {ex.sets.map((s) => (
                     <View key={s.id} style={styles.repPill}>
-                      <Text style={styles.repValue}>{s.reps}</Text>
-                      {variableWeight ? (
+                      <Text style={styles.repValue}>
+                        {ex.tracking_mode === 'hold' ? formatClock(s.duration_seconds ?? 0) : s.reps}
+                      </Text>
+                      {ex.tracking_mode !== 'hold' && variableWeight ? (
                         <Text style={styles.repWeight}>{s.weight ?? ex.weight ?? 0} kg</Text>
                       ) : null}
                       <Text style={styles.repRest}>

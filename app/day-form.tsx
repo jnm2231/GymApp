@@ -8,7 +8,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
@@ -19,7 +18,7 @@ import { Button, EmptyState } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { createDay, getDay, getDayExercises, updateDay } from '@/db/days';
 import { createExercise, listExercises } from '@/db/exercises';
-import type { CardioTracking, Exercise, TrainingType } from '@/db/types';
+import type { CardioTracking, Exercise, ExerciseTracking, TrainingType } from '@/db/types';
 import { getTrainingType, TRAINING_TYPES } from '@/lib/training-types';
 
 export default function DayFormScreen() {
@@ -33,11 +32,15 @@ export default function DayFormScreen() {
   const [catalog, setCatalog] = useState<Exercise[]>([]);
   const [selected, setSelected] = useState<number[]>([]); // en orden de selección
   const [trainingType, setTrainingType] = useState<TrainingType>('strength');
-  const [creatingExercise, setCreatingExercise] = useState(false);
+  const [expandedTypes, setExpandedTypes] = useState<TrainingType[]>(['strength']);
+  const [newExerciseType, setNewExerciseType] = useState<TrainingType | null>(null);
   const [newExerciseName, setNewExerciseName] = useState('');
-  const [newExerciseCorporal, setNewExerciseCorporal] = useState(false);
   const [newCardioTracking, setNewCardioTracking] = useState<CardioTracking>('both');
-  const typeConfig = getTrainingType(trainingType);
+  const [newTrackingMode, setNewTrackingMode] = useState<ExerciseTracking>('reps');
+  const orderedTypes = [
+    getTrainingType(trainingType),
+    ...TRAINING_TYPES.filter((type) => type.value !== trainingType),
+  ];
 
   useEffect(() => {
     (async () => {
@@ -47,6 +50,7 @@ export default function DayFormScreen() {
         if (day) {
           setName(day.name);
           setTrainingType(day.training_type);
+          setExpandedTypes([day.training_type]);
         }
         const exs = await getDayExercises(db, dayId);
         setSelected(exs.map((e) => e.id));
@@ -60,7 +64,7 @@ export default function DayFormScreen() {
 
   const handleCreateExercise = async () => {
     const trimmed = newExerciseName.trim();
-    if (!trimmed) {
+    if (!trimmed || newExerciseType == null) {
       showAlert('Falta el nombre', 'Escribe un nombre para el nuevo ejercicio.');
       return;
     }
@@ -68,16 +72,16 @@ export default function DayFormScreen() {
       const exerciseId = await createExercise(
         db,
         trimmed,
-        trainingType === 'calisthenics' ? true : newExerciseCorporal,
-        trainingType,
-        newCardioTracking
+        newExerciseType,
+        newCardioTracking,
+        newTrackingMode
       );
       setCatalog(await listExercises(db));
       setSelected((prev) => [...prev, exerciseId]);
       setNewExerciseName('');
-      setNewExerciseCorporal(false);
       setNewCardioTracking('both');
-      setCreatingExercise(false);
+      setNewTrackingMode('reps');
+      setNewExerciseType(null);
     } catch {
       showAlert('Ya existe', `El ejercicio "${trimmed}" ya está en el catálogo.`);
     }
@@ -129,11 +133,11 @@ export default function DayFormScreen() {
               onPress={() => {
                 if (trainingType === type.value) return;
                 setTrainingType(type.value);
-                setSelected([]);
-                setCreatingExercise(false);
+                setExpandedTypes([type.value]);
+                setNewExerciseType(null);
                 setNewExerciseName('');
-                setNewExerciseCorporal(false);
                 setNewCardioTracking('both');
+                setNewTrackingMode('reps');
               }}>
               <MaterialCommunityIcons name={type.icon} size={17} color={type.color} />
               <Text style={[styles.typeText, trainingType === type.value && { color: type.color }]}>
@@ -142,117 +146,180 @@ export default function DayFormScreen() {
             </Pressable>
           ))}
         </View>
+        <Text style={styles.hint}>Define el color del día y el grupo de ejercicios que se abre primero.</Text>
 
         <Text style={[styles.label, { marginTop: Spacing.lg }]}>
           Ejercicios {selected.length > 0 ? `(${selected.length})` : ''}
         </Text>
-        <Text style={styles.hint}>El número indica el orden dentro del día.</Text>
+        <Text style={styles.hint}>
+          Puedes mezclar tipos. El número indica el orden dentro del entrenamiento.
+        </Text>
 
-        {catalog.filter((ex) => ex.exercise_type === trainingType).length === 0 ? (
-          <EmptyState
-            title={`No hay ejercicios de ${getTrainingType(trainingType).label.toLowerCase()}`}
-            subtitle="Puedes crear el primero directamente aquí abajo."
-          />
-        ) : (
-          catalog.filter((ex) => ex.exercise_type === trainingType).map((ex) => {
-            const order = selected.indexOf(ex.id);
-            const isSel = order !== -1;
-            return (
+        {orderedTypes.map((type) => {
+          const expanded = expandedTypes.includes(type.value);
+          const exercises = catalog.filter((exercise) => exercise.exercise_type === type.value);
+          const selectedCount = exercises.filter((exercise) => selected.includes(exercise.id)).length;
+          const creatingHere = newExerciseType === type.value;
+          return (
+            <View key={type.value} style={[styles.exerciseGroup, { borderColor: type.color }]}>
               <Pressable
-                key={ex.id}
-                style={[
-                  styles.exRow,
-                  isSel && { borderColor: typeConfig.color, backgroundColor: typeConfig.dimColor },
-                ]}
-                onPress={() => toggle(ex.id)}>
-                <View
-                  style={[
-                    styles.checkbox,
-                    isSel && { backgroundColor: typeConfig.color, borderColor: typeConfig.color },
-                  ]}>
-                  {isSel ? (
-                    <Text style={styles.orderNum}>{order + 1}</Text>
-                  ) : (
-                    <MaterialCommunityIcons name="plus" size={16} color={GymTheme.textFaint} />
-                  )}
+                style={[styles.groupHeader, { backgroundColor: type.dimColor }]}
+                onPress={() =>
+                  setExpandedTypes((current) =>
+                    expanded
+                      ? current.filter((value) => value !== type.value)
+                      : [...current, type.value]
+                  )
+                }>
+                <MaterialCommunityIcons name={type.icon} size={19} color={type.color} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.groupTitle, { color: type.color }]}>{type.label}</Text>
+                  <Text style={styles.groupMeta}>
+                    {exercises.length} {exercises.length === 1 ? 'ejercicio' : 'ejercicios'}
+                    {selectedCount > 0 ? ` · ${selectedCount} seleccionados` : ''}
+                  </Text>
                 </View>
-                <Text style={styles.exName}>{ex.name}</Text>
-                {ex.es_corporal ? <Text style={styles.tag}>corporal</Text> : null}
+                <MaterialCommunityIcons
+                  name={expanded ? 'chevron-up' : 'chevron-down'}
+                  size={22}
+                  color={type.color}
+                />
               </Pressable>
-            );
-          })
-        )}
 
-        <Pressable
-          style={[styles.createToggle, { borderColor: typeConfig.color }]}
-          onPress={() => setCreatingExercise((value) => !value)}>
-          <MaterialCommunityIcons
-            name={creatingExercise ? 'chevron-up' : 'plus-circle-outline'}
-            size={19}
-            color={typeConfig.color}
-          />
-          <Text style={[styles.createToggleText, { color: typeConfig.color }]}>
-            {creatingExercise ? 'Cerrar creación de ejercicio' : 'Crear un ejercicio nuevo'}
-          </Text>
-        </Pressable>
+              {expanded ? (
+                <View style={styles.groupContent}>
+                  {exercises.length === 0 ? (
+                    <EmptyState
+                      title={`No hay ejercicios de ${type.label.toLowerCase()}`}
+                      subtitle="Puedes crear el primero en este desplegable."
+                    />
+                  ) : (
+                    exercises.map((exercise) => {
+                      const order = selected.indexOf(exercise.id);
+                      const isSelected = order !== -1;
+                      return (
+                        <Pressable
+                          key={exercise.id}
+                          style={[
+                            styles.exRow,
+                            isSelected && {
+                              borderColor: type.color,
+                              backgroundColor: type.dimColor,
+                            },
+                          ]}
+                          onPress={() => toggle(exercise.id)}>
+                          <View
+                            style={[
+                              styles.checkbox,
+                              isSelected && { backgroundColor: type.color, borderColor: type.color },
+                            ]}>
+                            {isSelected ? (
+                              <Text style={styles.orderNum}>{order + 1}</Text>
+                            ) : (
+                              <MaterialCommunityIcons name="plus" size={16} color={GymTheme.textFaint} />
+                            )}
+                          </View>
+                          <Text style={styles.exName}>{exercise.name}</Text>
+                          {exercise.tracking_mode === 'hold' ? <Text style={styles.tag}>aguante</Text> : null}
+                        </Pressable>
+                      );
+                    })
+                  )}
 
-        {creatingExercise ? (
-          <View style={[styles.createCard, { borderColor: typeConfig.color }]}>
-            <Text style={styles.createTitle}>Nuevo ejercicio de {typeConfig.label.toLowerCase()}</Text>
-            <TextInput
-              style={styles.input}
-              placeholder={trainingType === 'cardio' ? 'Ej: Cinta de correr' : 'Ej: Press banca'}
-              placeholderTextColor={GymTheme.textFaint}
-              value={newExerciseName}
-              onChangeText={setNewExerciseName}
-              returnKeyType="done"
-              onSubmitEditing={handleCreateExercise}
-            />
-
-            {trainingType === 'cardio' ? (
-              <View style={styles.metricRow}>
-                {([
-                  ['duration', 'Tiempo'],
-                  ['distance', 'Distancia'],
-                  ['both', 'Tiempo + distancia'],
-                ] as const).map(([value, label]) => (
                   <Pressable
-                    key={value}
-                    style={[
-                      styles.metricChip,
-                      newCardioTracking === value && {
-                        borderColor: typeConfig.color,
-                        backgroundColor: typeConfig.dimColor,
-                      },
-                    ]}
-                    onPress={() => setNewCardioTracking(value)}>
-                    <Text
-                      style={[
-                        styles.metricText,
-                        newCardioTracking === value && { color: typeConfig.color },
-                      ]}>
-                      {label}
+                    style={[styles.createToggle, { borderColor: type.color }]}
+                    onPress={() => {
+                      setNewExerciseType(creatingHere ? null : type.value);
+                      setNewExerciseName('');
+                      setNewCardioTracking('both');
+                      setNewTrackingMode('reps');
+                    }}>
+                    <MaterialCommunityIcons
+                      name={creatingHere ? 'chevron-up' : 'plus-circle-outline'}
+                      size={19}
+                      color={type.color}
+                    />
+                    <Text style={[styles.createToggleText, { color: type.color }]}>
+                      {creatingHere ? 'Cerrar' : `Crear ejercicio de ${type.label.toLowerCase()}`}
                     </Text>
                   </Pressable>
-                ))}
-              </View>
-            ) : trainingType === 'strength' ? (
-              <View style={styles.corporalRow}>
-                <Switch
-                  value={newExerciseCorporal}
-                  onValueChange={setNewExerciseCorporal}
-                  trackColor={{ true: GymTheme.active, false: GymTheme.disabled }}
-                  thumbColor={GymTheme.white}
-                />
-                <Text style={styles.hint}>Es corporal (peso propio + lastre)</Text>
-              </View>
-            ) : (
-              <Text style={styles.hint}>Los ejercicios de calistenia se registran como corporales.</Text>
-            )}
 
-            <Button title="Crear y seleccionar" onPress={handleCreateExercise} />
-          </View>
-        ) : null}
+                  {creatingHere ? (
+                    <View style={[styles.createCard, { borderColor: type.color }]}>
+                      <Text style={styles.createTitle}>Nuevo ejercicio de {type.label.toLowerCase()}</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder={type.value === 'cardio' ? 'Ej: Cinta de correr' : 'Nombre del ejercicio'}
+                        placeholderTextColor={GymTheme.textFaint}
+                        value={newExerciseName}
+                        onChangeText={setNewExerciseName}
+                        returnKeyType="done"
+                        onSubmitEditing={handleCreateExercise}
+                      />
+
+                      {type.value === 'cardio' ? (
+                        <View style={styles.metricRow}>
+                          {([
+                            ['duration', 'Tiempo'],
+                            ['distance', 'Distancia'],
+                            ['both', 'Tiempo + distancia'],
+                          ] as const).map(([value, label]) => (
+                            <Pressable
+                              key={value}
+                              style={[
+                                styles.metricChip,
+                                newCardioTracking === value && {
+                                  borderColor: type.color,
+                                  backgroundColor: type.dimColor,
+                                },
+                              ]}
+                              onPress={() => setNewCardioTracking(value)}>
+                              <Text
+                                style={[
+                                  styles.metricText,
+                                  newCardioTracking === value && { color: type.color },
+                                ]}>
+                                {label}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      ) : type.value === 'calisthenics' ? (
+                        <View style={styles.metricRow}>
+                          {([
+                            ['reps', 'Repeticiones'],
+                            ['hold', 'Aguante'],
+                          ] as const).map(([value, label]) => (
+                            <Pressable
+                              key={value}
+                              style={[
+                                styles.metricChip,
+                                newTrackingMode === value && {
+                                  borderColor: type.color,
+                                  backgroundColor: type.dimColor,
+                                },
+                              ]}
+                              onPress={() => setNewTrackingMode(value)}>
+                              <Text
+                                style={[
+                                  styles.metricText,
+                                  newTrackingMode === value && { color: type.color },
+                                ]}>
+                                {label}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      ) : null}
+
+                      <Button title="Crear y seleccionar" onPress={handleCreateExercise} />
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+          );
+        })}
       </ScrollView>
 
       <View style={styles.footer}>
@@ -294,6 +361,21 @@ const styles = StyleSheet.create({
     color: GymTheme.text,
     fontSize: 16,
   },
+  exerciseGroup: {
+    backgroundColor: GymTheme.surface,
+    borderWidth: 1,
+    borderRadius: Radius.md,
+    overflow: 'hidden',
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    padding: Spacing.md,
+  },
+  groupTitle: { fontSize: 15, fontWeight: '800' },
+  groupMeta: { color: GymTheme.textMuted, fontSize: 11, marginTop: 2 },
+  groupContent: { gap: Spacing.sm, padding: Spacing.sm },
   exRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -353,7 +435,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   metricText: { color: GymTheme.textMuted, fontSize: 12, fontWeight: '700' },
-  corporalRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   footer: {
     flexDirection: 'row',
     gap: Spacing.sm,

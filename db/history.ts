@@ -1,5 +1,11 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { CardioEntry, CardioTracking, ExerciseSet, TrainingType } from './types';
+import type {
+  CardioEntry,
+  CardioTracking,
+  ExerciseSet,
+  ExerciseTracking,
+  TrainingType,
+} from './types';
 
 export interface ExerciseHistoryEntry {
   session_id: number;
@@ -13,6 +19,7 @@ export interface ExerciseHistoryEntry {
   user_weight: number | null; // snapshot del peso del usuario en esa sesión
   exercise_type: TrainingType;
   cardio_tracking: CardioTracking;
+  tracking_mode: ExerciseTracking;
   sets: ExerciseSet[];
   cardio_entry: CardioEntry | null;
 }
@@ -23,6 +30,7 @@ export interface PerformedExerciseSummary {
   timesPerformed: number;
   bestOneRepMax: number;
   exerciseType: TrainingType;
+  trackingMode: ExerciseTracking;
 }
 
 /** Todos los ejercicios que aparecen al menos una vez en sesiones finalizadas. */
@@ -33,15 +41,16 @@ export async function getPerformedExerciseSummaries(
     `SELECT se.exercise_id AS exerciseId,
             COALESCE(e.name, se.exercise_name) AS name,
             MAX(se.exercise_type) AS exerciseType,
+            MAX(se.tracking_mode) AS trackingMode,
             COUNT(DISTINCT se.id) AS timesPerformed,
-            MAX(COALESCE((
+            MAX(CASE WHEN se.tracking_mode = 'reps' AND se.exercise_type != 'cardio' THEN COALESCE((
               SELECT MAX(
                 (CASE WHEN se.es_corporal = 1
                       THEN COALESCE(s.user_weight, 0) + COALESCE(st.weight, se.weight, 0)
                       ELSE COALESCE(st.weight, se.weight, 0)
                  END) * (1 + st.reps / 30.0)
               ) FROM sets st WHERE st.session_exercise_id = se.id
-            ), 0)) AS bestOneRepMax
+            ), 0) ELSE 0 END) AS bestOneRepMax
        FROM session_exercises se
        JOIN sessions s ON s.id = se.session_id
        LEFT JOIN exercises e ON e.id = se.exercise_id
@@ -80,7 +89,8 @@ export async function getExerciseHistory(
             se.es_corporal           AS es_corporal,
             s.user_weight            AS user_weight,
             se.exercise_type         AS exercise_type,
-            se.cardio_tracking       AS cardio_tracking
+            se.cardio_tracking       AS cardio_tracking,
+            se.tracking_mode         AS tracking_mode
        FROM session_exercises se
        JOIN sessions s ON s.id = se.session_id
       WHERE se.exercise_id = ?
@@ -125,6 +135,7 @@ export async function getLastExerciseSummary(
       WHERE se.exercise_id = ?
         AND s.status = 'finished'
         AND (? IS NULL OR se.session_id != ?)
+        AND se.tracking_mode = 'reps'
         AND EXISTS (SELECT 1 FROM sets st WHERE st.session_exercise_id = se.id)
       ORDER BY s.start_ts DESC
       LIMIT 1`,
