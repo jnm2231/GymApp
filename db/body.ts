@@ -11,12 +11,10 @@ export interface BodyProfile {
 }
 
 export async function getBodyProfile(db: SQLiteDatabase): Promise<BodyProfile> {
-  const [weightValue, heightValue, birthDate, reminder] = await Promise.all([
-    getSetting(db, 'user_weight'),
-    getSetting(db, 'user_height_cm'),
-    getSetting(db, 'birth_date'),
-    getSetting(db, 'weekly_weight_reminder'),
-  ]);
+  const weightValue = await getSetting(db, 'user_weight');
+  const heightValue = await getSetting(db, 'user_height_cm');
+  const birthDate = await getSetting(db, 'birth_date');
+  const reminder = await getSetting(db, 'weekly_weight_reminder');
   const weight = Number(weightValue);
   const height = Number(heightValue);
   return {
@@ -32,10 +30,8 @@ export async function saveBodyProfile(
   heightCm: number | null,
   birthDate: string | null
 ): Promise<void> {
-  await Promise.all([
-    setSetting(db, 'user_height_cm', heightCm == null ? '' : String(heightCm)),
-    setSetting(db, 'birth_date', birthDate ?? ''),
-  ]);
+  await setSetting(db, 'user_height_cm', heightCm == null ? '' : String(heightCm));
+  await setSetting(db, 'birth_date', birthDate ?? '');
 }
 
 export async function recordBodyWeight(db: SQLiteDatabase, weight: number): Promise<void> {

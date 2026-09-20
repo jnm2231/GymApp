@@ -66,10 +66,11 @@ export function SessionView() {
       setLoading(false);
       return;
     }
-    const [bs, estimate] = await Promise.all([
-      getSessionExercisesWithSets(db, s.id),
-      s.day_id == null ? Promise.resolve(null) : getAverageDayDuration(db, s.day_id),
-    ]);
+    // expo-sqlite en Android puede liberar prematuramente objetos nativos si
+    // dos consultas usan a la vez la misma conexión. Mantener estas lecturas
+    // secuenciales evita esa carrera sin cambiar el resultado.
+    const bs = await getSessionExercisesWithSets(db, s.id);
+    const estimate = s.day_id == null ? null : await getAverageDayDuration(db, s.day_id);
     setBlocks(bs);
     setDurationEstimate(estimate);
     await scheduleWorkoutReminder(db, s.id);

@@ -23,10 +23,8 @@ export default function HistoricoScreen() {
   const [sort, setSort] = useState<HistorySort>('name');
 
   const load = useCallback(async () => {
-    const [nextDays, nextPerformed] = await Promise.all([
-      listDaysWithCount(db),
-      getPerformedExerciseSummaries(db),
-    ]);
+    const nextDays = await listDaysWithCount(db);
+    const nextPerformed = await getPerformedExerciseSummaries(db);
     setDays(nextDays);
     setPerformed(nextPerformed);
   }, [db]);

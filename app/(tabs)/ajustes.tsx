@@ -71,12 +71,10 @@ export default function AjustesScreen() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const [profile, nextMeasurements, nextExercises, devNote] = await Promise.all([
-      getBodyProfile(db),
-      listBodyMeasurements(db),
-      listExercises(db),
-      getDevNote(db),
-    ]);
+    const profile = await getBodyProfile(db);
+    const nextMeasurements = await listBodyMeasurements(db);
+    const nextExercises = await listExercises(db);
+    const devNote = await getDevNote(db);
     setWeight(profile.weight ? String(profile.weight) : '');
     setHeight(profile.heightCm == null ? '' : String(profile.heightCm));
     setBirthDate(profile.birthDate ? isoToDisplayDate(profile.birthDate) : '');
