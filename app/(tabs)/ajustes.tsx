@@ -274,9 +274,10 @@ export default function AjustesScreen() {
                 placeholderTextColor={GymTheme.textFaint}
                 keyboardType="number-pad"
                 value={birthDate}
-                onChangeText={setBirthDate}
+                onChangeText={(value) => setBirthDate(formatBirthDateInput(value))}
                 maxLength={10}
               />
+              <Text style={styles.inputHint}>Escribe las 8 cifras; las barras se añaden solas.</Text>
             </View>
           </View>
           {displayDateToIso(birthDate) ? (
@@ -529,6 +530,7 @@ const styles = StyleSheet.create({
   },
   unit: { color: GymTheme.textMuted, fontSize: 16, fontWeight: '600' },
   fieldLabel: { color: GymTheme.textMuted, fontSize: 12, fontWeight: '700' },
+  inputHint: { color: GymTheme.textFaint, fontSize: 10, lineHeight: 14, marginTop: 4 },
   profileGrid: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.md },
   compactField: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   ageText: { color: GymTheme.primary, fontSize: 13, fontWeight: '700' },
@@ -616,6 +618,13 @@ function displayDateToIso(value: string): string | null {
     date.getTime() > Date.now()
   ) return null;
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function formatBirthDateInput(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
 }
 
 function isoToDisplayDate(value: string): string {

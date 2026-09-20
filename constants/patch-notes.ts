@@ -40,6 +40,11 @@ export const PATCH_NOTES: VersionNotes[] = [
           'Al comenzar un entrenamiento se muestra la duración media de las últimas 20 sesiones finalizadas de ese mismo día y la hora estimada de finalización. El cálculo usa la hora real de la última serie.',
       },
       {
+        title: 'Recordatorio para finalizar el entrenamiento',
+        detail:
+          'Si pasan 30 minutos sin actividad, una notificación permite finalizar el entrenamiento o indicar que se sigue entrenando.',
+      },
+      {
         title: 'Histórico global de ejercicios',
         detail:
           'El histórico muestra todos los ejercicios realizados, excluye los que nunca se han entrenado y permite ordenarlos por nombre, número de veces realizado o mejor 1RM. Cada ejercicio indica además su número total de realizaciones.',
@@ -54,8 +59,44 @@ export const PATCH_NOTES: VersionNotes[] = [
         detail:
           'Los días se clasifican y distinguen por color: musculación en naranja, cardio en azul y calistenia en verde. Los ejercicios de cardio permiten configurar y registrar tiempo, distancia o ambos, además de notas.',
       },
+      {
+        title: 'Crear ejercicios al preparar un día',
+        detail:
+          'La pantalla de creación y edición de días permite añadir un ejercicio nuevo, configurarlo según el tipo de entrenamiento y seleccionarlo al instante, sin pasar por Ajustes.',
+      },
     ],
-    fixes: [],
+    fixes: [
+      {
+        title: 'Las repeticiones editadas se guardan correctamente',
+        detail:
+          'Al editar las series de un ejercicio terminado y pulsar «Listo», el nuevo número de repeticiones queda guardado y se refleja en el histórico.',
+      },
+      {
+        title: 'Duraciones reales aunque se olvide finalizar',
+        detail:
+          'La duración termina en la última serie o actividad registrada, evitando entrenamientos de varias horas o días por haber pulsado «Fin» tarde.',
+      },
+      {
+        title: 'Los ejercicios terminados pueden continuarse',
+        detail:
+          '«Seguir ejercicio» conserva series, repeticiones, descansos y horas, continúa la numeración y actualiza la nueva hora de finalización.',
+      },
+      {
+        title: 'Estabilidad de SQLite en Android',
+        detail:
+          'Las consultas a la base de datos se ejecutan de forma secuencial para evitar el error de objeto nativo liberado observado con Expo SDK 57.',
+      },
+      {
+        title: 'Arranque y navegación actualizados para Expo',
+        detail:
+          'Se actualizaron Expo y sus dependencias compatibles y se corrigió la estructura de navegación que provocaba avisos de rutas sin exportación válida.',
+      },
+      {
+        title: 'Entrada correcta de la fecha de nacimiento',
+        detail:
+          'El teclado numérico ya no exige introducir barras: la aplicación forma automáticamente la fecha DD/MM/AAAA.',
+      },
+    ],
   },
   {
     version: '1.2.0',

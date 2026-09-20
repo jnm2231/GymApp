@@ -16,6 +16,9 @@ publicar una versión.
 - **Duración media y fin estimado.** Al comenzar un entrenamiento se muestra la
   duración media de las últimas 20 sesiones finalizadas de ese mismo día y la
   hora estimada de finalización. El cálculo usa como final real la última serie.
+- **Recordatorio para finalizar el entrenamiento.** Si pasan 30 minutos sin
+  actividad, una notificación permite finalizar la sesión o indicar que se
+  continúa entrenando.
 - **Histórico global de ejercicios.** La pestaña Histórico muestra todos los
   ejercicios realizados, excluye los que nunca se han entrenado y permite
   ordenarlos por nombre, número de veces realizado o mejor 1RM. Cada histórico
@@ -31,9 +34,29 @@ publicar una versión.
   aparecen en el calendario y el histórico.
   - *Modelo de datos:* tipos fotografiados en plantillas y sesiones, nueva tabla
     `cardio_entries` y esquema v4.
+- **Crear ejercicios al preparar un día.** La creación y edición de días permite
+  añadir un ejercicio del tipo correspondiente, configurarlo y seleccionarlo al
+  instante sin tener que pasar antes por Ajustes.
 
 ### Solución de errores
-- Sin correcciones en esta versión.
+- **Las repeticiones editadas se guardan correctamente.** Al editar las series
+  de un ejercicio terminado y pulsar «Listo», el nuevo valor queda persistido y
+  se refleja en el histórico.
+- **Duraciones reales aunque se olvide finalizar.** La duración termina en la
+  última serie o actividad registrada, evitando sesiones de varias horas o días
+  por haber pulsado «Fin» tarde.
+- **Los ejercicios terminados pueden continuarse.** «Seguir ejercicio» conserva
+  las series, repeticiones, descansos y horas, continúa su numeración y actualiza
+  la hora de finalización al volver a marcarlo como terminado.
+- **Estabilidad de SQLite en Android.** Las consultas se ejecutan de forma
+  secuencial para evitar el error de objeto nativo liberado observado con Expo
+  SDK 57.
+- **Arranque y navegación actualizados para Expo.** Se actualizaron Expo y sus
+  dependencias compatibles y se corrigió la estructura de navegación que
+  provocaba avisos de rutas sin exportación válida.
+- **Entrada correcta de la fecha de nacimiento.** El teclado numérico solo
+  requiere escribir ocho cifras; las barras de DD/MM/AAAA se añaden
+  automáticamente.
 
 ---
 
