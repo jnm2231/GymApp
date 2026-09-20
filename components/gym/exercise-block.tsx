@@ -8,12 +8,14 @@ import { getLastExerciseSummary } from '@/db/history';
 import {
   addSet,
   finishExercise,
+  reopenExercise,
   setExerciseWeight,
   updateSetReps,
   updateSetWeight,
 } from '@/db/sessions';
 import type { SessionExerciseWithSets } from '@/db/types';
 import { formatClock, formatHM, formatRest, repsSummary } from '@/lib/format';
+import { scheduleWorkoutReminder } from '@/lib/workout-notifications';
 
 interface Props {
   block: SessionExerciseWithSets;
@@ -96,12 +98,12 @@ function WeightCell({
 
 /** Cronómetro en vivo del descanso: cuenta desde la última serie confirmada. */
 function RestClock({ sinceTs }: { sinceTs: number }) {
-  const [, setTick] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => (t + 1) % 1000000), 1000);
+    const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
-  const elapsed = Math.floor((Date.now() - sinceTs) / 1000);
+  const elapsed = Math.floor((now - sinceTs) / 1000);
   return (
     <View style={styles.restClock}>
       <MaterialCommunityIcons name="timer-sand-complete" size={15} color={GymTheme.primary} />
@@ -134,12 +136,8 @@ export function ExerciseBlock({
   // el usuario puede sobreescribirlo antes de confirmar la serie.
   const [newSetWeight, setNewSetWeight] = useState<number | null>(block.weight);
   const [editing, setEditing] = useState(false); // modo edición de un bloque terminado
+  const [editedReps, setEditedReps] = useState<Record<number, string>>({});
   const [ref, setRef] = useState<{ weight: number | null; reps: number[] } | null>(null);
-
-  // Si cambia el peso global del ejercicio, la próxima serie vuelve a ese valor.
-  useEffect(() => {
-    setNewSetWeight(block.weight);
-  }, [block.weight]);
 
   // Referencia del último día que se hizo este ejercicio.
   useEffect(() => {
@@ -160,6 +158,7 @@ export function ExerciseBlock({
     const n = parseFloat(weightInput.replace(',', '.'));
     if (!Number.isFinite(n)) return;
     await setExerciseWeight(db, block.id, n);
+    setNewSetWeight(n);
     setWeightEditing(false);
     await onChanged();
   };
@@ -170,6 +169,7 @@ export function ExerciseBlock({
     // Guarda NULL (hereda global) si el peso coincide con el global; si no, el valor.
     const stored = block.weight != null && newSetWeight === block.weight ? null : newSetWeight;
     await addSet(db, block.id, reps, stored);
+    await scheduleWorkoutReminder(db, sessionId);
     setRepsInput('');
     setNewSetWeight(block.weight); // siguiente serie vuelve al peso global por defecto
     await onChanged();
@@ -186,11 +186,31 @@ export function ExerciseBlock({
     await onChanged();
   };
 
-  const handleEditReps = async (setId: number, value: string) => {
-    const reps = parseInt(value, 10);
-    if (!Number.isInteger(reps) || reps <= 0) return;
-    await updateSetReps(db, setId, reps);
+  const handleContinue = async () => {
+    await reopenExercise(db, block.id);
+    setEditing(false);
+    onFocus();
     await onChanged();
+  };
+
+  const toggleEditing = async () => {
+    if (!editing) {
+      setEditedReps(Object.fromEntries(block.sets.map((set) => [set.id, String(set.reps)])));
+      setEditing(true);
+      return;
+    }
+
+    let changed = false;
+    for (const set of block.sets) {
+      const reps = parseInt(editedReps[set.id] ?? String(set.reps), 10);
+      if (Number.isInteger(reps) && reps > 0 && reps !== set.reps) {
+        await updateSetReps(db, set.id, reps);
+        changed = true;
+      }
+    }
+    setEditing(false);
+    setEditedReps({});
+    if (changed) await onChanged();
   };
 
   // --- Bloque no enfocado y no terminado: seleccionable (se puede empezar/seguir) ---
@@ -305,8 +325,10 @@ export function ExerciseBlock({
                   <TextInput
                     style={styles.repsEdit}
                     keyboardType="number-pad"
-                    defaultValue={String(s.reps)}
-                    onEndEditing={(e) => handleEditReps(s.id, e.nativeEvent.text)}
+                    value={editedReps[s.id] ?? String(s.reps)}
+                    onChangeText={(value) =>
+                      setEditedReps((current) => ({ ...current, [s.id]: value }))
+                    }
                   />
                 ) : (
                   <Text style={styles.setReps}>{s.reps} reps</Text>
@@ -377,16 +399,24 @@ export function ExerciseBlock({
         <View style={{ flex: 1 }} />
 
         {done ? (
-          <Pressable style={styles.editBtn} onPress={() => setEditing((v) => !v)} hitSlop={6}>
-            <MaterialCommunityIcons
-              name={editing ? 'check' : 'pencil'}
-              size={16}
-              color={editing ? GymTheme.active : GymTheme.textMuted}
-            />
-            <Text style={[styles.editText, editing && { color: GymTheme.active }]}>
-              {editing ? 'Listo' : 'Editar'}
-            </Text>
-          </Pressable>
+          <>
+            <Pressable style={styles.editBtn} onPress={toggleEditing} hitSlop={6}>
+              <MaterialCommunityIcons
+                name={editing ? 'check' : 'pencil'}
+                size={16}
+                color={editing ? GymTheme.active : GymTheme.textMuted}
+              />
+              <Text style={[styles.editText, editing && { color: GymTheme.active }]}>
+                {editing ? 'Listo' : 'Editar'}
+              </Text>
+            </Pressable>
+            {editing ? (
+              <Pressable style={styles.continueBtn} onPress={handleContinue} hitSlop={6}>
+                <MaterialCommunityIcons name="play" size={16} color="#06210F" />
+                <Text style={styles.continueText}>Seguir ejercicio</Text>
+              </Pressable>
+            ) : null}
+          </>
         ) : isCurrent ? (
           <>
             <Pressable style={styles.postponeBtn} onPress={onPostpone} hitSlop={6}>
@@ -608,4 +638,14 @@ const styles = StyleSheet.create({
   doneText: { color: '#0C0C0E', fontWeight: '800', fontSize: 14 },
   editBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 6 },
   editText: { color: GymTheme.textMuted, fontWeight: '700', fontSize: 13 },
+  continueBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: GymTheme.active,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 10,
+  },
+  continueText: { color: '#06210F', fontWeight: '800', fontSize: 13 },
 });

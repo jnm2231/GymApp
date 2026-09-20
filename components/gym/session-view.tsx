@@ -22,6 +22,7 @@ import {
 import type { Exercise, Session, SessionExerciseWithSets } from '@/db/types';
 import { formatHM } from '@/lib/format';
 import { useKeyboardHeight } from '@/lib/use-keyboard';
+import { cancelWorkoutReminder, scheduleWorkoutReminder } from '@/lib/workout-notifications';
 
 /**
  * Vista de la sesión activa. Se renderiza DENTRO de la pestaña "Entreno"
@@ -61,6 +62,7 @@ export function SessionView() {
     }
     const bs = await getSessionExercisesWithSets(db, s.id);
     setBlocks(bs);
+    await scheduleWorkoutReminder(db, s.id);
     setFocusedId((prev) => {
       const stillValid = prev != null && bs.some((b) => b.id === prev && b.status !== 'done');
       if (stillValid) return prev;
@@ -105,6 +107,7 @@ export function SessionView() {
         text: 'Finalizar',
         onPress: async () => {
           await finishSession(db, session.id);
+          await cancelWorkoutReminder(session.id);
           await refresh(); // el tab "Entreno" volverá a mostrar el Inicio
         },
       },
@@ -119,6 +122,7 @@ export function SessionView() {
         style: 'destructive',
         onPress: async () => {
           await discardSession(db, session.id);
+          await cancelWorkoutReminder(session.id);
           await refresh();
         },
       },

@@ -219,6 +219,14 @@ export async function resumeSession(db: SQLiteDatabase, sessionId: number): Prom
 /** "Fin": cierra la sesión por completo y guarda la hora de finalización. */
 export async function finishSession(db: SQLiteDatabase, sessionId: number): Promise<void> {
   const now = Date.now();
+  const lastSet = await db.getFirstAsync<{ last_ts: number | null }>(
+    `SELECT MAX(st.ts) AS last_ts
+       FROM sets st
+       JOIN session_exercises se ON se.id = st.session_exercise_id
+      WHERE se.session_id = ?`,
+    [sessionId]
+  );
+  const sessionEnd = lastSet?.last_ts ?? now;
   await db.withTransactionAsync(async () => {
     // Cierra cualquier ejercicio que tuviera series pero no se marcó terminado.
     await db.runAsync(
@@ -228,7 +236,7 @@ export async function finishSession(db: SQLiteDatabase, sessionId: number): Prom
       [now, sessionId]
     );
     await db.runAsync("UPDATE sessions SET end_ts = ?, status = 'finished' WHERE id = ?", [
-      now,
+      sessionEnd,
       sessionId,
     ]);
   });

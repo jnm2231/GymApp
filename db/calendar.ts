@@ -34,7 +34,11 @@ export async function getMonthSessions(
   endTs: number
 ): Promise<Record<string, CalendarSession[]>> {
   const rows = await db.getAllAsync<CalendarSession>(
-    `SELECT id AS session_id, day_name, start_ts, end_ts
+    `SELECT id AS session_id, day_name, start_ts,
+            COALESCE((SELECT MAX(st.ts)
+                        FROM sets st
+                        JOIN session_exercises se ON se.id = st.session_exercise_id
+                       WHERE se.session_id = sessions.id), end_ts) AS end_ts
        FROM sessions
       WHERE status = 'finished' AND start_ts >= ? AND start_ts < ?
       ORDER BY start_ts ASC`,
@@ -60,7 +64,11 @@ export async function getDayDetail(
   endTs: number
 ): Promise<CalendarDayBlock[]> {
   const sessions = await db.getAllAsync<CalendarSession>(
-    `SELECT id AS session_id, day_name, start_ts, end_ts
+    `SELECT id AS session_id, day_name, start_ts,
+            COALESCE((SELECT MAX(st.ts)
+                        FROM sets st
+                        JOIN session_exercises se ON se.id = st.session_exercise_id
+                       WHERE se.session_id = sessions.id), end_ts) AS end_ts
        FROM sessions
       WHERE status = 'finished' AND start_ts >= ? AND start_ts < ?
       ORDER BY start_ts ASC`,
@@ -70,11 +78,13 @@ export async function getDayDetail(
   const blocks: CalendarDayBlock[] = [];
   for (const s of sessions) {
     const exercises = await db.getAllAsync<Omit<CalendarDayDetailExercise, 'sets'>>(
-      `SELECT id AS session_exercise_id, exercise_id, exercise_name, es_corporal,
-              weight, start_ts, end_ts
-         FROM session_exercises
-        WHERE session_id = ? AND start_ts IS NOT NULL
-        ORDER BY start_ts ASC, position ASC`,
+      `SELECT se.id AS session_exercise_id, se.exercise_id, se.exercise_name, se.es_corporal,
+              se.weight, se.start_ts,
+              COALESCE((SELECT MAX(st.ts) FROM sets st
+                         WHERE st.session_exercise_id = se.id), se.end_ts) AS end_ts
+         FROM session_exercises AS se
+         WHERE se.session_id = ? AND se.start_ts IS NOT NULL
+        ORDER BY se.start_ts ASC, se.position ASC`,
       [s.session_id]
     );
     const withSets: CalendarDayDetailExercise[] = [];

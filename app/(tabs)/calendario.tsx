@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Modal,
@@ -38,16 +38,17 @@ function addMonths(year: number, month: number, delta: number): MonthRef {
 export default function CalendarioScreen() {
   const db = useSQLiteContext();
   const { width } = useWindowDimensions();
-  const today = new Date();
+  const [today] = useState(() => new Date());
+  const todayYear = today.getFullYear();
+  const todayMonth = today.getMonth();
   const listRef = useRef<FlatList<MonthRef>>(null);
 
   // Páginas reales de meses (sin reciclar): así el paginado es nativo y no hay
   // que recolocar nada, lo que elimina cualquier parpadeo al cambiar de mes.
   const pages = useMemo<MonthRef[]>(() => {
-    const base = addMonths(today.getFullYear(), today.getMonth(), -RANGE);
+    const base = addMonths(todayYear, todayMonth, -RANGE);
     return Array.from({ length: RANGE * 2 + 1 }, (_, i) => addMonths(base.year, base.month, i));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [today.getFullYear(), today.getMonth()]);
+  }, [todayMonth, todayYear]);
 
   const [index, setIndex] = useState(RANGE); // arranca en el mes actual
   const [sessions, setSessions] = useState<Sessions>({});
@@ -67,10 +68,6 @@ export default function CalendarioScreen() {
     const data = await getMonthSessions(db, start, end);
     setSessions((prevMap) => ({ ...prevMap, ...data }));
   }, [db, index, pages]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   useFocusEffect(
     useCallback(() => {

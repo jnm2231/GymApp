@@ -1,12 +1,12 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { View } from 'react-native';
+import { type ColorValue, View } from 'react-native';
 
 import { GymTheme } from '@/constants/gym-theme';
 
 /** Icono de pesa con un "+" superpuesto para la pestaña de entrenamiento. */
-function DumbbellPlus({ color, size }: { color: string; size: number }) {
+function DumbbellPlus({ color, size }: { color: ColorValue; size: number }) {
   return (
     <View style={{ width: size, height: size }}>
       <MaterialCommunityIcons name="dumbbell" size={size} color={color} />

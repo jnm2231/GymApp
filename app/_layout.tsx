@@ -1,10 +1,11 @@
-import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
+import { DarkTheme, ThemeProvider } from 'expo-router/react-navigation';
 import { StatusBar } from 'expo-status-bar';
-import { Suspense } from 'react';
+import { Suspense, type ReactNode } from 'react';
+import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { SQLiteProvider } from 'expo-sqlite';
+import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import 'react-native-reanimated';
 
 import { AlertProvider } from '@/components/gym/alert';
@@ -12,6 +13,9 @@ import { Loading } from '@/components/gym/ui';
 import { GymTheme } from '@/constants/gym-theme';
 import { SessionProvider } from '@/context/session-context';
 import { DATABASE_NAME, initDatabase } from '@/db/schema';
+import {
+  subscribeToWorkoutNotificationResponses,
+} from '@/lib/workout-notifications';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -36,7 +40,8 @@ export default function RootLayout() {
       <SafeAreaProvider style={{ backgroundColor: GymTheme.background }}>
         <Suspense fallback={<Loading />}>
           <SQLiteProvider databaseName={DATABASE_NAME} onInit={initDatabase} useSuspense>
-            <SessionProvider>
+            <NotificationBridge>
+              <SessionProvider>
               <ThemeProvider value={NavTheme}>
                 <AlertProvider>
                   <Stack
@@ -57,10 +62,30 @@ export default function RootLayout() {
                   <StatusBar style="light" />
                 </AlertProvider>
               </ThemeProvider>
-            </SessionProvider>
+              </SessionProvider>
+            </NotificationBridge>
           </SQLiteProvider>
         </Suspense>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
+}
+
+function NotificationBridge({ children }: { children: ReactNode }) {
+  const db = useSQLiteContext();
+
+  useEffect(() => {
+    let disposed = false;
+    let unsubscribe = () => {};
+    void subscribeToWorkoutNotificationResponses(db).then((removeListener) => {
+      if (disposed) removeListener();
+      else unsubscribe = removeListener;
+    });
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
+  }, [db]);
+
+  return <>{children}</>;
 }

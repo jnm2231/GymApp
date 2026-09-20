@@ -28,7 +28,8 @@ export async function getExerciseHistory(
             s.day_name               AS day_name,
             s.start_ts               AS session_start_ts,
             se.start_ts              AS start_ts,
-            se.end_ts                AS end_ts,
+            COALESCE((SELECT MAX(st.ts) FROM sets st
+                       WHERE st.session_exercise_id = se.id), se.end_ts) AS end_ts,
             se.weight                AS weight,
             se.es_corporal           AS es_corporal,
             s.user_weight            AS user_weight
