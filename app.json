@@ -12,7 +12,7 @@
     },
     "android": {
       "package": "com.jnm2231.gymapp",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "backgroundColor": "#0C0C0E",
         "foregroundImage": "./assets/images/logo.png"
