@@ -30,9 +30,9 @@ publicar una versión.
 - **Días de musculación, cardio, corporal y aguante.** Las plantillas y sus
   sesiones se clasifican por tipo y se distinguen por color: musculación en
   naranja, cardio en azul, corporal en verde y aguante en violeta. Los
-  ejercicios de cardio pueden configurarse
-  para registrar tiempo, distancia o ambos, además de notas, y sus resultados
-  aparecen en el calendario y el histórico.
+  ejercicios de Cardio cronometran siempre el tiempo; la distancia es opcional
+  y, cuando se indica, la aplicación calcula el ritmo medio. Los resultados y
+  notas aparecen en el calendario y el histórico.
   - *Modelo de datos:* tipos fotografiados en plantillas y sesiones, nueva tabla
     `cardio_entries` y esquema v4.
 - **Días con ejercicios de cualquier tipo.** Una misma plantilla puede mezclar
@@ -44,7 +44,13 @@ publicar una versión.
   detiene un cronómetro, se conserva la duración y se calcula el descanso entre
   series.
   - *Modelo de datos:* modo de seguimiento en catálogo y sesiones, inicio de
-    cronómetro persistente, duración por serie y esquema v6.
+    cronómetro persistente y duración por serie.
+- **Cronómetros en notificaciones.** Un ajuste permite mostrar el tiempo
+  transcurrido durante descansos, ejercicios de Aguante y Cardio. En Android
+  se usa el cronómetro del sistema para continuar contando con la aplicación
+  cerrada.
+  - *Modelo de datos:* Cardio unificado, preferencia de notificaciones y esquema
+    v7.
 - **Crear ejercicios al preparar un día.** La creación y edición de días permite
   añadir un ejercicio del tipo correspondiente, configurarlo y seleccionarlo al
   instante sin tener que pasar antes por Ajustes.

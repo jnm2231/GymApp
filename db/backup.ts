@@ -95,5 +95,11 @@ export async function restoreBackup(db: SQLiteDatabase, data: unknown): Promise<
     await db.runAsync(
       "UPDATE session_exercises SET exercise_type = 'hold', es_corporal = 0 WHERE tracking_mode = 'hold'"
     );
+    await db.runAsync(
+      "UPDATE exercises SET cardio_tracking = 'both' WHERE exercise_type = 'cardio'"
+    );
+    await db.runAsync(
+      "UPDATE session_exercises SET cardio_tracking = 'both' WHERE exercise_type = 'cardio'"
+    );
   });
 }

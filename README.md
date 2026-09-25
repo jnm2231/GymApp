@@ -33,6 +33,10 @@ entrenamientos. **Todos los datos se guardan únicamente en el dispositivo**
   guarda como _snapshot_ en cada sesión.
 - **Ejercicios de aguante.** Son un tipo independiente, identificado en violeta,
   y registran la duración de cada serie mediante un cronómetro.
+- **Cardio automático.** La aplicación cronometra el tiempo; la distancia es
+  opcional y permite calcular el ritmo medio en min/km.
+- **Cronómetros en notificaciones.** Se pueden activar para descansos, Aguante
+  y Cardio. En Android continúan contando aunque la aplicación esté cerrada.
 - **Una sesión a la vez.** Mientras haya un entrenamiento activo o en pausa, la
   pestaña Entreno muestra la sesión (no se puede iniciar otro día).
 
@@ -116,9 +120,10 @@ npm install      # solo la primera vez
 npx expo start
 ```
 
-Escanea el QR con Expo Go. Todas las dependencias nativas usadas (SQLite, SVG,
-file-system, document-picker, sharing) están incluidas en Expo Go para SDK 57,
-así que **no necesitas una build nativa para probar**.
+Escanea el QR con Expo Go para probar el flujo principal. Los cronómetros en
+notificaciones no están disponibles en Expo Go: para comprobarlos necesitas una
+build nativa de desarrollo o el APK. El resto de la aplicación puede probarse
+normalmente desde Expo Go.
 
 > **Primer arranque** (la base de datos empieza vacía):
 > 1. **Ajustes** → escribe tu peso y crea ejercicios de musculación, cardio, corporal o aguante.

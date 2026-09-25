@@ -13,7 +13,12 @@ import {
 } from '@/db/sessions';
 import type { SessionExerciseWithSets } from '@/db/types';
 import { formatClock, formatHM, formatRest } from '@/lib/format';
-import { cancelWorkoutReminder, scheduleWorkoutReminder } from '@/lib/workout-notifications';
+import {
+  cancelTimerNotification,
+  cancelWorkoutReminder,
+  scheduleWorkoutReminder,
+  showTimerNotification,
+} from '@/lib/workout-notifications';
 
 interface Props {
   block: SessionExerciseWithSets;
@@ -50,19 +55,25 @@ export function HoldExerciseBlock({
   }, [block.sets.length, done, isCurrent, running]);
 
   const startSet = async () => {
-    await startHoldSet(db, block.id);
+    const startedAt = await startHoldSet(db, block.id);
     await cancelWorkoutReminder(sessionId);
+    await showTimerNotification(db, sessionId, 'hold', block.exercise_name, startedAt);
     await onChanged();
   };
 
   const stopSet = async () => {
-    await finishHoldSet(db, block.id);
+    const createdSet = await finishHoldSet(db, block.id);
+    await cancelTimerNotification(sessionId);
+    if (createdSet) {
+      await showTimerNotification(db, sessionId, 'rest', block.exercise_name, createdSet.ts);
+    }
     await scheduleWorkoutReminder(db, sessionId);
     await onChanged();
   };
 
   const finish = async () => {
     await finishExercise(db, block.id);
+    await cancelTimerNotification(sessionId);
     await onChanged();
   };
 
@@ -70,7 +81,16 @@ export function HoldExerciseBlock({
     await reopenExercise(db, block.id);
     setEditing(false);
     onFocus();
+    const lastSet = block.sets[block.sets.length - 1];
+    if (lastSet) {
+      await showTimerNotification(db, sessionId, 'rest', block.exercise_name, lastSet.ts);
+    }
     await onChanged();
+  };
+
+  const postpone = async () => {
+    await cancelTimerNotification(sessionId);
+    onPostpone();
   };
 
   const toggleEditing = async () => {
@@ -222,7 +242,7 @@ export function HoldExerciseBlock({
         ) : isCurrent ? (
           <>
             {!running ? (
-              <Pressable style={styles.secondaryButton} onPress={onPostpone}>
+              <Pressable style={styles.secondaryButton} onPress={postpone}>
                 <Text style={styles.secondaryText}>Posponer</Text>
               </Pressable>
             ) : null}

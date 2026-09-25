@@ -27,7 +27,11 @@ import type { Exercise, Session, SessionExerciseWithSets } from '@/db/types';
 import { formatDuration, formatHM } from '@/lib/format';
 import { useKeyboardHeight } from '@/lib/use-keyboard';
 import { getTrainingType } from '@/lib/training-types';
-import { cancelWorkoutReminder, scheduleWorkoutReminder } from '@/lib/workout-notifications';
+import {
+  cancelTimerNotification,
+  cancelWorkoutReminder,
+  scheduleWorkoutReminder,
+} from '@/lib/workout-notifications';
 
 /**
  * Vista de la sesión activa. Se renderiza DENTRO de la pestaña "Entreno"
@@ -119,6 +123,7 @@ export function SessionView() {
         text: 'Finalizar',
         onPress: async () => {
           await finishSession(db, session.id);
+          await cancelTimerNotification(session.id);
           await cancelWorkoutReminder(session.id);
           await refresh(); // el tab "Entreno" volverá a mostrar el Inicio
         },
@@ -134,6 +139,7 @@ export function SessionView() {
         style: 'destructive',
         onPress: async () => {
           await discardSession(db, session.id);
+          await cancelTimerNotification(session.id);
           await cancelWorkoutReminder(session.id);
           await refresh();
         },
@@ -190,7 +196,6 @@ export function SessionView() {
       ex.name,
       ex.es_corporal === 1,
       ex.exercise_type,
-      ex.cardio_tracking,
       ex.tracking_mode
     );
     setPickerOpen(false);

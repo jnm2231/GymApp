@@ -57,7 +57,7 @@ export const PATCH_NOTES: VersionNotes[] = [
       {
         title: 'Días de musculación, cardio, corporal y aguante',
         detail:
-          'Los días se clasifican y distinguen por color: musculación en naranja, cardio en azul, corporal en verde y aguante en violeta. Los ejercicios de cardio permiten configurar y registrar tiempo, distancia o ambos, además de notas.',
+          'Los días se clasifican y distinguen por color: musculación en naranja, cardio en azul, corporal en verde y aguante en violeta. En Cardio, la aplicación cronometra siempre el tiempo; la distancia es opcional y, si se indica, calcula el ritmo medio.',
       },
       {
         title: 'Días con ejercicios de cualquier tipo',
@@ -68,6 +68,11 @@ export const PATCH_NOTES: VersionNotes[] = [
         title: 'Series de aguante cronometradas',
         detail:
           'Aguante es un cuarto tipo independiente, identificado en violeta. Cada serie tiene controles para empezar y terminar, registra su duración y calcula el descanso entre series.',
+      },
+      {
+        title: 'Cronómetros en notificaciones',
+        detail:
+          'Un ajuste permite mostrar el tiempo transcurrido durante descansos, ejercicios de Aguante y Cardio. En Android el cronómetro continúa contando con la aplicación cerrada.',
       },
       {
         title: 'Crear ejercicios al preparar un día',

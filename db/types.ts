@@ -1,7 +1,9 @@
 // Tipos del dominio, espejo del esquema SQLite (ver db/schema.ts).
 
 export type TrainingType = 'strength' | 'cardio' | 'calisthenics' | 'hold';
-export type CardioTracking = 'duration' | 'distance' | 'both';
+// Campo legado conservado en SQLite para poder restaurar copias antiguas.
+// Desde v7 todo cardio cronometra el tiempo y admite distancia opcional.
+export type CardioTracking = 'both';
 export type ExerciseTracking = 'reps' | 'hold';
 
 export interface Exercise {

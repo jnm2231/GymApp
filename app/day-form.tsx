@@ -18,7 +18,7 @@ import { Button, EmptyState } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { createDay, getDay, getDayExercises, updateDay } from '@/db/days';
 import { createExercise, listExercises } from '@/db/exercises';
-import type { CardioTracking, Exercise, TrainingType } from '@/db/types';
+import type { Exercise, TrainingType } from '@/db/types';
 import { getTrainingType, TRAINING_TYPES } from '@/lib/training-types';
 
 export default function DayFormScreen() {
@@ -35,7 +35,6 @@ export default function DayFormScreen() {
   const [expandedTypes, setExpandedTypes] = useState<TrainingType[]>(['strength']);
   const [newExerciseType, setNewExerciseType] = useState<TrainingType | null>(null);
   const [newExerciseName, setNewExerciseName] = useState('');
-  const [newCardioTracking, setNewCardioTracking] = useState<CardioTracking>('both');
   const orderedTypes = [
     getTrainingType(trainingType),
     ...TRAINING_TYPES.filter((type) => type.value !== trainingType),
@@ -68,11 +67,10 @@ export default function DayFormScreen() {
       return;
     }
     try {
-      const exerciseId = await createExercise(db, trimmed, newExerciseType, newCardioTracking);
+      const exerciseId = await createExercise(db, trimmed, newExerciseType);
       setCatalog(await listExercises(db));
       setSelected((prev) => [...prev, exerciseId]);
       setNewExerciseName('');
-      setNewCardioTracking('both');
       setNewExerciseType(null);
     } catch {
       showAlert('Ya existe', `El ejercicio "${trimmed}" ya está en el catálogo.`);
@@ -128,7 +126,6 @@ export default function DayFormScreen() {
                 setExpandedTypes([type.value]);
                 setNewExerciseType(null);
                 setNewExerciseName('');
-                setNewCardioTracking('both');
               }}>
               <MaterialCommunityIcons name={type.icon} size={17} color={type.color} />
               <Text style={[styles.typeText, trainingType === type.value && { color: type.color }]}>
@@ -221,7 +218,6 @@ export default function DayFormScreen() {
                     onPress={() => {
                       setNewExerciseType(creatingHere ? null : type.value);
                       setNewExerciseName('');
-                      setNewCardioTracking('both');
                     }}>
                     <MaterialCommunityIcons
                       name={creatingHere ? 'chevron-up' : 'plus-circle-outline'}
@@ -245,35 +241,6 @@ export default function DayFormScreen() {
                         returnKeyType="done"
                         onSubmitEditing={handleCreateExercise}
                       />
-
-                      {type.value === 'cardio' ? (
-                        <View style={styles.metricRow}>
-                          {([
-                            ['duration', 'Tiempo'],
-                            ['distance', 'Distancia'],
-                            ['both', 'Tiempo + distancia'],
-                          ] as const).map(([value, label]) => (
-                            <Pressable
-                              key={value}
-                              style={[
-                                styles.metricChip,
-                                newCardioTracking === value && {
-                                  borderColor: type.color,
-                                  backgroundColor: type.dimColor,
-                                },
-                              ]}
-                              onPress={() => setNewCardioTracking(value)}>
-                              <Text
-                                style={[
-                                  styles.metricText,
-                                  newCardioTracking === value && { color: type.color },
-                                ]}>
-                                {label}
-                              </Text>
-                            </Pressable>
-                          ))}
-                        </View>
-                      ) : null}
 
                       <Button title="Crear y seleccionar" onPress={handleCreateExercise} />
                     </View>
@@ -380,15 +347,6 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   createTitle: { color: GymTheme.text, fontSize: 15, fontWeight: '800' },
-  metricRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  metricChip: {
-    borderWidth: 1,
-    borderColor: GymTheme.border,
-    borderRadius: Radius.pill,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 8,
-  },
-  metricText: { color: GymTheme.textMuted, fontSize: 12, fontWeight: '700' },
   footer: {
     flexDirection: 'row',
     gap: Spacing.sm,

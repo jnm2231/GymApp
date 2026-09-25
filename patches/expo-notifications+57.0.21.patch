@@ -1,0 +1,19 @@
+diff --git a/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/presentation/builders/ExpoNotificationBuilder.kt b/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/presentation/builders/ExpoNotificationBuilder.kt
+index 610d303..e6427ff 100644
+--- a/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/presentation/builders/ExpoNotificationBuilder.kt
++++ b/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/presentation/builders/ExpoNotificationBuilder.kt
+@@ -104,6 +104,14 @@ open class ExpoNotificationBuilder(
+     builder.setContentTitle(content.title)
+     builder.setContentText(content.text)
+     builder.setSubText(content.subText)
++    // GymApp: Android mantiene este cronómetro aunque la app quede en segundo
++    // plano. El timestamp viaja en los datos privados de la notificación.
++    content.body?.optLong("_gymTimerStartedAt", 0)?.takeIf { it > 0 }?.let { startedAt ->
++      builder.setWhen(startedAt)
++      builder.setShowWhen(true)
++      builder.setUsesChronometer(true)
++      builder.setChronometerCountDown(false)
++    }
+     // Sets the text/contentText as the bigText to allow the notification to be expanded and the
+     // entire text to be viewed.
+     builder.setStyle(NotificationCompat.BigTextStyle().bigText(content.text))

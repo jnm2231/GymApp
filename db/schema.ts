@@ -3,7 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 /**
  * Versión del esquema. Se guarda con PRAGMA user_version para futuras migraciones.
  */
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 /**
  * Definición de tablas (Paso 1).
@@ -245,11 +245,24 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
     );
   }
 
+  if (current < 7) {
+    // Cardio deja de dividirse por métricas: el tiempo se cronometra siempre
+    // y la distancia es un dato opcional. La columna se conserva para que las
+    // copias antiguas sigan siendo compatibles.
+    await db.execAsync(
+      "UPDATE exercises SET cardio_tracking = 'both' WHERE exercise_type = 'cardio';" +
+      "UPDATE session_exercises SET cardio_tracking = 'both' WHERE exercise_type = 'cardio';"
+    );
+  }
+
   if (current < SCHEMA_VERSION) await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 
   // Semilla del peso del usuario si no existe.
   await db.runAsync(
     `INSERT OR IGNORE INTO settings (key, value) VALUES ('user_weight', '0')`
+  );
+  await db.runAsync(
+    `INSERT OR IGNORE INTO settings (key, value) VALUES ('timer_notifications_enabled', '0')`
   );
 }
 

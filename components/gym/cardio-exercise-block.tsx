@@ -1,17 +1,23 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import {
   completeCardioExercise,
   reopenExercise,
+  startCardioExercise,
   updateCardioEntry,
 } from '@/db/sessions';
 import type { SessionExerciseWithSets } from '@/db/types';
-import { formatCardioSummary } from '@/lib/format';
-import { scheduleWorkoutReminder } from '@/lib/workout-notifications';
+import { formatCardioSummary, formatClock, formatPace } from '@/lib/format';
+import {
+  cancelTimerNotification,
+  cancelWorkoutReminder,
+  scheduleWorkoutReminder,
+  showTimerNotification,
+} from '@/lib/workout-notifications';
 
 interface Props {
   block: SessionExerciseWithSets;
@@ -34,66 +40,65 @@ export function CardioExerciseBlock({
 }: Props) {
   const db = useSQLiteContext();
   const done = block.status === 'done';
+  const running = block.timer_started_ts != null;
   const entry = block.cardio_entry;
-  const [minutes, setMinutes] = useState(
-    entry?.duration_seconds == null ? '' : String(Math.round(entry.duration_seconds / 60))
-  );
+  const [now, setNow] = useState(() => Date.now());
   const [distance, setDistance] = useState(entry?.distance_km == null ? '' : String(entry.distance_km));
   const [notes, setNotes] = useState(entry?.notes ?? '');
   const [editing, setEditing] = useState(false);
 
-  const tracksDuration = block.cardio_tracking !== 'distance';
-  const tracksDistance = block.cardio_tracking !== 'duration';
+  useEffect(() => {
+    if (!running) return;
+    const timer = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(timer);
+  }, [running]);
 
-  const parsedValues = () => {
-    const parsedMinutes = parseFloat(minutes.replace(',', '.'));
-    const parsedDistance = parseFloat(distance.replace(',', '.'));
-    return {
-      durationSeconds: Number.isFinite(parsedMinutes) && parsedMinutes > 0 ? Math.round(parsedMinutes * 60) : null,
-      distanceKm: Number.isFinite(parsedDistance) && parsedDistance > 0 ? parsedDistance : null,
-    };
+  const elapsedSeconds = running
+    ? Math.max(0, Math.floor((now - block.timer_started_ts!) / 1000))
+    : 0;
+  const totalSeconds = (entry?.duration_seconds ?? 0) + elapsedSeconds;
+
+  const parsedDistance = () => {
+    const value = Number.parseFloat(distance.replace(',', '.'));
+    return Number.isFinite(value) && value > 0 ? value : null;
   };
 
-  const isValid = () => {
-    const values = parsedValues();
-    if (block.cardio_tracking === 'duration') return values.durationSeconds != null;
-    if (block.cardio_tracking === 'distance') return values.distanceKm != null;
-    return values.durationSeconds != null || values.distanceKm != null;
+  const start = async () => {
+    onFocus();
+    const startedAt = await startCardioExercise(db, block.id);
+    await cancelWorkoutReminder(sessionId);
+    await showTimerNotification(db, sessionId, 'cardio', block.exercise_name, startedAt);
+    await onChanged();
   };
 
   const complete = async () => {
-    if (!isValid()) return;
-    const values = parsedValues();
-    await completeCardioExercise(
-      db,
-      block.id,
-      values.durationSeconds,
-      values.distanceKm,
-      notes.trim() || null
-    );
+    if (!running) return;
+    await completeCardioExercise(db, block.id, parsedDistance(), notes.trim() || null);
+    await cancelTimerNotification(sessionId);
     await scheduleWorkoutReminder(db, sessionId);
     await onChanged();
   };
 
   const saveEdit = async () => {
-    if (!isValid()) return;
-    const values = parsedValues();
-    await updateCardioEntry(
-      db,
-      block.id,
-      values.durationSeconds,
-      values.distanceKm,
-      notes.trim() || null
-    );
+    await updateCardioEntry(db, block.id, parsedDistance(), notes.trim() || null);
     setEditing(false);
     await onChanged();
   };
 
   const continueExercise = async () => {
+    await updateCardioEntry(db, block.id, parsedDistance(), notes.trim() || null);
     await reopenExercise(db, block.id);
     setEditing(false);
     onFocus();
+    const startedAt = await startCardioExercise(db, block.id);
+    await cancelWorkoutReminder(sessionId);
+    await showTimerNotification(db, sessionId, 'cardio', block.exercise_name, startedAt);
     await onChanged();
+  };
+
+  const postpone = async () => {
+    await cancelTimerNotification(sessionId);
+    onPostpone();
   };
 
   if (!isCurrent && !done) {
@@ -103,10 +108,10 @@ export function CardioExerciseBlock({
           <MaterialCommunityIcons name="run-fast" size={22} color={GymTheme.cardio} />
           <View style={{ flex: 1 }}>
             <Text style={styles.name}>{block.exercise_name}</Text>
-            <Text style={styles.sub}>Cardio · {trackingLabel(block.cardio_tracking)}</Text>
+            <Text style={styles.sub}>Cardio · tiempo automático</Text>
           </View>
           {canFocus ? (
-            <Pressable style={styles.startBtn} onPress={onFocus}>
+            <Pressable style={styles.startBtn} onPress={start}>
               <MaterialCommunityIcons name="play" size={16} color="#07162B" />
               <Text style={styles.startText}>Empezar</Text>
             </Pressable>
@@ -122,51 +127,50 @@ export function CardioExerciseBlock({
         <MaterialCommunityIcons name="run-fast" size={23} color={GymTheme.cardio} />
         <View style={{ flex: 1 }}>
           <Text style={styles.name}>{block.exercise_name}</Text>
-          <Text style={styles.sub}>{trackingLabel(block.cardio_tracking)}</Text>
+          <Text style={styles.sub}>Tiempo automático · distancia opcional</Text>
         </View>
       </View>
 
       {done && !editing ? (
         <View style={styles.summary}>
           <MaterialCommunityIcons name="check-circle" size={18} color={GymTheme.active} />
-          <Text style={styles.summaryText}>{formatCardioSummary(entry?.duration_seconds, entry?.distance_km)}</Text>
+          <Text style={styles.summaryText}>
+            {formatCardioSummary(entry?.duration_seconds, entry?.distance_km)}
+          </Text>
         </View>
       ) : (
         <View style={styles.fields}>
-          <View style={styles.metricRow}>
-            {tracksDuration ? (
-              <View style={styles.metricField}>
-                <Text style={styles.label}>Tiempo</Text>
-                <View style={styles.inputRow}>
-                  <TextInput
-                    style={styles.input}
-                    keyboardType="decimal-pad"
-                    placeholder="0"
-                    placeholderTextColor={GymTheme.textFaint}
-                    value={minutes}
-                    onChangeText={setMinutes}
-                  />
-                  <Text style={styles.unit}>min</Text>
-                </View>
-              </View>
-            ) : null}
-            {tracksDistance ? (
-              <View style={styles.metricField}>
-                <Text style={styles.label}>Distancia</Text>
-                <View style={styles.inputRow}>
-                  <TextInput
-                    style={styles.input}
-                    keyboardType="decimal-pad"
-                    placeholder="0"
-                    placeholderTextColor={GymTheme.textFaint}
-                    value={distance}
-                    onChangeText={setDistance}
-                  />
-                  <Text style={styles.unit}>km</Text>
-                </View>
-              </View>
-            ) : null}
+          <View style={styles.timerBox}>
+            <MaterialCommunityIcons
+              name={running || editing ? 'timer-outline' : 'timer-off-outline'}
+              size={20}
+              color={GymTheme.cardio}
+            />
+            <Text style={styles.liveClock}>{formatClock(totalSeconds)}</Text>
+            <Text style={styles.timerLabel}>
+              {running ? 'en curso' : editing ? 'tiempo registrado' : 'pulsa Empezar'}
+            </Text>
           </View>
+
+          <View style={styles.metricField}>
+            <Text style={styles.label}>Distancia opcional</Text>
+            <View style={styles.inputRow}>
+              <TextInput
+                style={styles.input}
+                keyboardType="decimal-pad"
+                placeholder="Sin distancia"
+                placeholderTextColor={GymTheme.textFaint}
+                value={distance}
+                onChangeText={setDistance}
+              />
+              <Text style={styles.unit}>km</Text>
+            </View>
+          </View>
+
+          {parsedDistance() != null && totalSeconds > 0 ? (
+            <Text style={styles.pace}>Ritmo medio · {formatPace(totalSeconds, parsedDistance())}</Text>
+          ) : null}
+
           <TextInput
             style={styles.notes}
             placeholder="Notas opcionales"
@@ -192,26 +196,25 @@ export function CardioExerciseBlock({
               </Pressable>
             ) : null}
           </>
+        ) : running ? (
+          <Pressable style={styles.finishBtn} onPress={complete}>
+            <MaterialCommunityIcons name="flag-checkered" size={16} color="#07162B" />
+            <Text style={styles.startText}>Terminado</Text>
+          </Pressable>
         ) : (
           <>
-            <Pressable style={styles.postponeBtn} onPress={onPostpone}>
+            <Pressable style={styles.postponeBtn} onPress={postpone}>
               <Text style={styles.postponeText}>Posponer</Text>
             </Pressable>
-            <Pressable style={[styles.finishBtn, !isValid() && styles.disabled]} onPress={complete} disabled={!isValid()}>
-              <MaterialCommunityIcons name="flag-checkered" size={16} color="#07162B" />
-              <Text style={styles.startText}>Terminado</Text>
+            <Pressable style={styles.startBtn} onPress={start}>
+              <MaterialCommunityIcons name="play" size={16} color="#07162B" />
+              <Text style={styles.startText}>Empezar</Text>
             </Pressable>
           </>
         )}
       </View>
     </View>
   );
-}
-
-function trackingLabel(tracking: SessionExerciseWithSets['cardio_tracking']) {
-  if (tracking === 'duration') return 'Registro por tiempo';
-  if (tracking === 'distance') return 'Registro por distancia';
-  return 'Tiempo y distancia';
 }
 
 const styles = StyleSheet.create({
@@ -234,10 +237,15 @@ const styles = StyleSheet.create({
   },
   startText: { color: '#07162B', fontSize: 13, fontWeight: '800' },
   summary: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  summaryText: { color: GymTheme.text, fontSize: 17, fontWeight: '800' },
+  summaryText: { color: GymTheme.text, fontSize: 17, fontWeight: '800', flex: 1 },
   fields: { gap: Spacing.md },
-  metricRow: { flexDirection: 'row', gap: Spacing.md },
-  metricField: { flex: 1, gap: 5 },
+  timerBox: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    backgroundColor: GymTheme.cardioDim, borderRadius: Radius.md, padding: Spacing.md,
+  },
+  liveClock: { color: GymTheme.cardio, fontSize: 27, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  timerLabel: { color: GymTheme.textMuted, fontSize: 12, flex: 1 },
+  metricField: { gap: 5 },
   label: { color: GymTheme.textMuted, fontSize: 12, fontWeight: '700' },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   input: {
@@ -246,6 +254,7 @@ const styles = StyleSheet.create({
     color: GymTheme.text, fontSize: 16,
   },
   unit: { color: GymTheme.textMuted, fontWeight: '700' },
+  pace: { color: GymTheme.cardio, fontSize: 13, fontWeight: '800' },
   notes: {
     backgroundColor: GymTheme.inputBg, borderWidth: 1, borderColor: GymTheme.border,
     borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 10, color: GymTheme.text,
@@ -266,5 +275,4 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: GymTheme.cardio,
     borderRadius: Radius.md, paddingHorizontal: Spacing.lg, paddingVertical: 10,
   },
-  disabled: { opacity: 0.4 },
 });

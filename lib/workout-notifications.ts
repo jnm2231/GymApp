@@ -3,20 +3,25 @@ import { Platform } from 'react-native';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { finishSession, getSession } from '@/db/sessions';
+import { getSetting, setSetting } from '@/db/settings';
 
 export const WORKOUT_REMINDER_CATEGORY = 'workout-idle-reminder';
 export const WORKOUT_REMINDER_TYPE = 'workout-idle-reminder';
 export const FINISH_ACTION = 'finish-workout';
 export const CONTINUE_ACTION = 'continue-workout';
 const REMINDER_DELAY_SECONDS = 30 * 60;
+const TIMER_NOTIFICATION_TYPE = 'workout-live-timer';
+const TIMER_NOTIFICATION_SETTING = 'timer_notifications_enabled';
+const TIMER_CHANNEL = 'workout-timers';
 type NotificationsModule = typeof import('expo-notifications');
 type NotificationResponse = import('expo-notifications').NotificationResponse;
+export type WorkoutTimerKind = 'rest' | 'hold' | 'cardio';
 
 let configured = false;
 
 /** Expo Go Android no incluye expo-notifications desde SDK 53. */
 async function loadNotifications(): Promise<NotificationsModule | null> {
-  if (Constants.executionEnvironment === 'storeClient') return null;
+  if (Constants.executionEnvironment === 'storeClient' || Platform.OS === 'web') return null;
   return import('expo-notifications');
 }
 
@@ -53,16 +58,115 @@ export async function configureWorkoutNotifications(): Promise<NotificationsModu
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#B8FF3D',
     });
+    void Notifications.setNotificationChannelAsync(TIMER_CHANNEL, {
+      name: 'Cronómetros de entrenamiento',
+      importance: Notifications.AndroidImportance.LOW,
+      vibrationPattern: null,
+      sound: null,
+      lightColor: '#3B82F6',
+    });
   }
 
   return Notifications;
 }
 
-async function notificationsAreEnabled(Notifications: NotificationsModule): Promise<boolean> {
+export async function ensureNotificationsPermission(
+  Notifications: NotificationsModule
+): Promise<boolean> {
   const current = await Notifications.getPermissionsAsync();
   if (current.granted || current.status === 'granted') return true;
   const requested = await Notifications.requestPermissionsAsync();
   return requested.granted || requested.status === 'granted';
+}
+
+export async function getTimerNotificationsEnabled(db: SQLiteDatabase): Promise<boolean> {
+  return (await getSetting(db, TIMER_NOTIFICATION_SETTING)) === '1';
+}
+
+export async function setTimerNotificationsEnabled(
+  db: SQLiteDatabase,
+  enabled: boolean
+): Promise<boolean> {
+  if (enabled) {
+    const Notifications = await configureWorkoutNotifications();
+    if (!Notifications || !(await ensureNotificationsPermission(Notifications))) return false;
+  }
+  await setSetting(db, TIMER_NOTIFICATION_SETTING, enabled ? '1' : '0');
+  if (!enabled) await cancelAllTimerNotifications();
+  return true;
+}
+
+function timerNotificationId(sessionId: number): string {
+  return `gymapp-live-timer-${sessionId}`;
+}
+
+/**
+ * Muestra un cronómetro persistente. En Android una pequeña extensión nativa
+ * activa el cronómetro del sistema, que sigue contando con la app cerrada.
+ */
+export async function showTimerNotification(
+  db: SQLiteDatabase,
+  sessionId: number,
+  kind: WorkoutTimerKind,
+  exerciseName: string,
+  startedAt: number
+): Promise<void> {
+  if (!(await getTimerNotificationsEnabled(db))) return;
+  const Notifications = await configureWorkoutNotifications();
+  if (!Notifications || !(await ensureNotificationsPermission(Notifications))) return;
+
+  const title =
+    kind === 'rest'
+      ? `Descanso · ${exerciseName}`
+      : kind === 'hold'
+        ? `Aguante · ${exerciseName}`
+        : `Cardio · ${exerciseName}`;
+
+  await Notifications.scheduleNotificationAsync({
+    identifier: timerNotificationId(sessionId),
+    content: {
+      title,
+      body: 'Tiempo transcurrido',
+      sound: false,
+      sticky: Platform.OS === 'android',
+      autoDismiss: false,
+      color: kind === 'hold' ? '#B58CFF' : kind === 'cardio' ? '#3B82F6' : '#FF6A00',
+      data: {
+        type: TIMER_NOTIFICATION_TYPE,
+        sessionId,
+        timerKind: kind,
+        _gymTimerStartedAt: startedAt,
+      },
+    },
+    trigger: Platform.OS === 'android' ? { channelId: TIMER_CHANNEL } : null,
+  });
+}
+
+export async function cancelTimerNotification(sessionId: number): Promise<void> {
+  const Notifications = await configureWorkoutNotifications();
+  if (!Notifications) return;
+  const identifier = timerNotificationId(sessionId);
+  await Promise.allSettled([
+    Notifications.cancelScheduledNotificationAsync(identifier),
+    Notifications.dismissNotificationAsync(identifier),
+  ]);
+}
+
+export async function cancelAllTimerNotifications(): Promise<void> {
+  const Notifications = await configureWorkoutNotifications();
+  if (!Notifications) return;
+  const [scheduled, presented] = await Promise.all([
+    Notifications.getAllScheduledNotificationsAsync(),
+    Notifications.getPresentedNotificationsAsync(),
+  ]);
+  await Promise.all([
+    ...scheduled
+      .filter((item) => item.content.data?.type === TIMER_NOTIFICATION_TYPE)
+      .map((item) => Notifications.cancelScheduledNotificationAsync(item.identifier)),
+    ...presented
+      .filter((item) => item.request.content.data?.type === TIMER_NOTIFICATION_TYPE)
+      .map((item) => Notifications.dismissNotificationAsync(item.request.identifier)),
+  ]);
 }
 
 async function cancelRemindersForSession(
@@ -113,7 +217,7 @@ export async function scheduleWorkoutReminder(
   if (!session || (session.status !== 'active' && session.status !== 'paused')) return;
 
   const Notifications = await configureWorkoutNotifications();
-  if (!Notifications || !(await notificationsAreEnabled(Notifications))) return;
+  if (!Notifications || !(await ensureNotificationsPermission(Notifications))) return;
   await cancelRemindersForSession(Notifications, sessionId);
 
   const elapsedSeconds = Math.floor((Date.now() - lastSet.last_ts) / 1000);
@@ -154,6 +258,7 @@ export async function handleWorkoutNotificationResponse(
 
   if (response.actionIdentifier === FINISH_ACTION) {
     await finishSession(db, data.sessionId);
+    await cancelTimerNotification(data.sessionId);
     await cancelWorkoutReminder(data.sessionId);
   } else if (response.actionIdentifier === CONTINUE_ACTION) {
     await scheduleWorkoutReminder(db, data.sessionId, REMINDER_DELAY_SECONDS);

@@ -37,7 +37,6 @@ import {
 import { getDevNote, saveDevNote } from '@/db/notes';
 import type {
   BodyMeasurement,
-  CardioTracking,
   Exercise,
   TrainingType,
 } from '@/db/types';
@@ -50,6 +49,10 @@ import {
 import { formatDate } from '@/lib/format';
 import { getTrainingType, TRAINING_TYPES } from '@/lib/training-types';
 import { useKeyboardHeight } from '@/lib/use-keyboard';
+import {
+  getTimerNotificationsEnabled,
+  setTimerNotificationsEnabled,
+} from '@/lib/workout-notifications';
 
 const CATALOG_PREVIEW = 5; // ejercicios visibles antes de "Ver todos"
 
@@ -65,12 +68,12 @@ export default function AjustesScreen() {
   const [height, setHeight] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [weeklyWeightReminder, setWeeklyWeightReminderState] = useState(false);
+  const [timerNotifications, setTimerNotifications] = useState(false);
   const [measurements, setMeasurements] = useState<BodyMeasurement[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [catalogExpanded, setCatalogExpanded] = useState(false);
   const [newName, setNewName] = useState('');
   const [newExerciseType, setNewExerciseType] = useState<TrainingType>('strength');
-  const [newCardioTracking, setNewCardioTracking] = useState<CardioTracking>('both');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -79,10 +82,12 @@ export default function AjustesScreen() {
     const nextMeasurements = await listBodyMeasurements(db);
     const nextExercises = await listExercises(db);
     const devNote = await getDevNote(db);
+    const timersEnabled = await getTimerNotificationsEnabled(db);
     setWeight(profile.weight ? String(profile.weight) : '');
     setHeight(profile.heightCm == null ? '' : String(profile.heightCm));
     setBirthDate(profile.birthDate ? isoToDisplayDate(profile.birthDate) : '');
     setWeeklyWeightReminderState(profile.weeklyWeightReminder);
+    setTimerNotifications(timersEnabled);
     setMeasurements(nextMeasurements);
     setExercises(nextExercises);
     setNote(devNote?.content ?? '');
@@ -128,11 +133,26 @@ export default function AjustesScreen() {
     else await disableWeeklyWeightReminder();
   };
 
+  const handleTimerNotificationsChange = async (enabled: boolean) => {
+    const changed = await setTimerNotificationsEnabled(db, enabled);
+    if (!changed) {
+      setTimerNotifications(false);
+      showAlert(
+        'Notificaciones no disponibles',
+        Constants.executionEnvironment === 'storeClient'
+          ? 'Los cronómetros en notificaciones necesitan una versión instalada de la app; Expo Go no los incluye.'
+          : 'Activa el permiso de notificaciones del sistema para usar esta función.'
+      );
+      return;
+    }
+    setTimerNotifications(enabled);
+  };
+
   const handleAddExercise = async () => {
     const name = newName.trim();
     if (!name) return;
     try {
-      await createExercise(db, name, newExerciseType, newCardioTracking);
+      await createExercise(db, name, newExerciseType);
       setNewName('');
       await load();
     } catch {
@@ -308,6 +328,27 @@ export default function AjustesScreen() {
           ) : null}
         </View>
 
+        {/* Notificaciones de cronómetros */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Cronómetros en notificaciones</Text>
+          <Text style={styles.cardSub}>
+            Muestra el tiempo transcurrido durante los descansos y los ejercicios de Aguante o
+            Cardio. En Android el contador continúa aunque cierres la app.
+          </Text>
+          <View style={styles.reminderRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.reminderTitle}>Mostrar cronómetro</Text>
+              <Text style={styles.cardSub}>Puedes activarlo o desactivarlo cuando quieras.</Text>
+            </View>
+            <Switch
+              value={timerNotifications}
+              onValueChange={handleTimerNotificationsChange}
+              trackColor={{ true: GymTheme.primary, false: GymTheme.disabled }}
+              thumbColor={GymTheme.white}
+            />
+          </View>
+        </View>
+
         {/* Catálogo de ejercicios */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Catálogo de ejercicios</Text>
@@ -375,24 +416,6 @@ export default function AjustesScreen() {
               </Pressable>
             ))}
           </View>
-          {newExerciseType === 'cardio' ? (
-            <View style={styles.typeSelector}>
-              {([
-                ['duration', 'Tiempo'],
-                ['distance', 'Distancia'],
-                ['both', 'Tiempo + distancia'],
-              ] as const).map(([value, label]) => (
-                <Pressable
-                  key={value}
-                  style={[styles.metricChip, newCardioTracking === value && styles.metricChipActive]}
-                  onPress={() => setNewCardioTracking(value)}>
-                  <Text style={[styles.typeChipText, newCardioTracking === value && { color: GymTheme.cardio }]}>
-                    {label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
           <View style={styles.corporalRow}>
             <Text style={styles.cardSub}>
               {newExerciseType === 'calisthenics'
@@ -564,14 +587,6 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     backgroundColor: GymTheme.surfaceAlt,
   },
-  metricChip: {
-    borderWidth: 1,
-    borderColor: GymTheme.border,
-    borderRadius: Radius.pill,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
-  },
-  metricChipActive: { borderColor: GymTheme.cardio, backgroundColor: GymTheme.cardioDim },
   typeChipText: { color: GymTheme.textMuted, fontSize: 12, fontWeight: '700' },
   noteActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   textarea: {

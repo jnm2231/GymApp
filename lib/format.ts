@@ -64,7 +64,22 @@ export function formatCardioSummary(
   distanceKm: number | null | undefined
 ): string {
   const parts: string[] = [];
-  if (durationSeconds != null) parts.push(`${Math.round(durationSeconds / 60)} min`);
+  if (durationSeconds != null) parts.push(formatClock(durationSeconds));
   if (distanceKm != null) parts.push(`${distanceKm} km`);
+  if (durationSeconds != null && distanceKm != null && distanceKm > 0) {
+    parts.push(formatPace(durationSeconds, distanceKm));
+  }
   return parts.join(' · ') || 'Sin métricas';
+}
+
+/** Ritmo medio de cardio en minutos por kilómetro. */
+export function formatPace(
+  durationSeconds: number,
+  distanceKm: number | null | undefined
+): string {
+  if (!distanceKm || distanceKm <= 0 || durationSeconds <= 0) return '—';
+  const secondsPerKm = Math.round(durationSeconds / distanceKm);
+  const minutes = Math.floor(secondsPerKm / 60);
+  const seconds = secondsPerKm % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')} min/km`;
 }

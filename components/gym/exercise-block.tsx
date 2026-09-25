@@ -15,7 +15,11 @@ import {
 } from '@/db/sessions';
 import type { SessionExerciseWithSets } from '@/db/types';
 import { formatClock, formatHM, formatRest, repsSummary } from '@/lib/format';
-import { scheduleWorkoutReminder } from '@/lib/workout-notifications';
+import {
+  cancelTimerNotification,
+  scheduleWorkoutReminder,
+  showTimerNotification,
+} from '@/lib/workout-notifications';
 
 interface Props {
   block: SessionExerciseWithSets;
@@ -168,7 +172,8 @@ export function ExerciseBlock({
     if (!Number.isInteger(reps) || reps <= 0) return;
     // Guarda NULL (hereda global) si el peso coincide con el global; si no, el valor.
     const stored = block.weight != null && newSetWeight === block.weight ? null : newSetWeight;
-    await addSet(db, block.id, reps, stored);
+    const createdSet = await addSet(db, block.id, reps, stored);
+    await showTimerNotification(db, sessionId, 'rest', block.exercise_name, createdSet.ts);
     await scheduleWorkoutReminder(db, sessionId);
     setRepsInput('');
     setNewSetWeight(block.weight); // siguiente serie vuelve al peso global por defecto
@@ -183,6 +188,7 @@ export function ExerciseBlock({
 
   const handleFinish = async () => {
     await finishExercise(db, block.id);
+    await cancelTimerNotification(sessionId);
     await onChanged();
   };
 
@@ -190,7 +196,16 @@ export function ExerciseBlock({
     await reopenExercise(db, block.id);
     setEditing(false);
     onFocus();
+    const lastSet = block.sets[block.sets.length - 1];
+    if (lastSet) {
+      await showTimerNotification(db, sessionId, 'rest', block.exercise_name, lastSet.ts);
+    }
     await onChanged();
+  };
+
+  const postpone = async () => {
+    await cancelTimerNotification(sessionId);
+    onPostpone();
   };
 
   const toggleEditing = async () => {
@@ -417,7 +432,7 @@ export function ExerciseBlock({
           </>
         ) : isCurrent ? (
           <>
-            <Pressable style={styles.postponeBtn} onPress={onPostpone} hitSlop={6}>
+            <Pressable style={styles.postponeBtn} onPress={postpone} hitSlop={6}>
               <MaterialCommunityIcons name="pause" size={16} color={GymTheme.text} />
               <Text style={styles.postponeText}>Posponer</Text>
             </Pressable>

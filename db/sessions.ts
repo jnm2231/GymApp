@@ -3,7 +3,6 @@ import { getDayExercises } from './days';
 import { getUserWeight } from './settings';
 import type {
   CardioEntry,
-  CardioTracking,
   Day,
   ExerciseSet,
   ExerciseTracking,
@@ -229,7 +228,7 @@ export async function deleteSet(db: SQLiteDatabase, setId: number): Promise<void
 export async function startHoldSet(
   db: SQLiteDatabase,
   sessionExerciseId: number
-): Promise<void> {
+): Promise<number> {
   const now = Date.now();
   await db.runAsync(
     `UPDATE session_exercises
@@ -237,6 +236,7 @@ export async function startHoldSet(
       WHERE id = ? AND timer_started_ts IS NULL`,
     [now, now, sessionExerciseId]
   );
+  return now;
 }
 
 /** Termina una serie de aguante y calcula tanto su duración como el descanso. */
@@ -295,15 +295,45 @@ export async function updateSetDuration(
   await db.runAsync('UPDATE sets SET duration_seconds = ? WHERE id = ?', [durationSeconds, setId]);
 }
 
+/** Inicia o reanuda el cronómetro de un ejercicio de cardio. */
+export async function startCardioExercise(
+  db: SQLiteDatabase,
+  sessionExerciseId: number
+): Promise<number> {
+  const now = Date.now();
+  await db.runAsync(
+    `UPDATE session_exercises
+        SET timer_started_ts = ?, start_ts = COALESCE(start_ts, ?), end_ts = NULL, status = 'active'
+      WHERE id = ? AND exercise_type = 'cardio' AND timer_started_ts IS NULL`,
+    [now, now, sessionExerciseId]
+  );
+  return now;
+}
+
 export async function completeCardioExercise(
   db: SQLiteDatabase,
   sessionExerciseId: number,
-  durationSeconds: number | null,
-  distanceKm: number | null,
-  notes: string | null
+  distanceKm?: number | null,
+  notes?: string | null
 ): Promise<void> {
-  const now = Date.now();
   await db.withTransactionAsync(async () => {
+    const block = await db.getFirstAsync<{ timer_started_ts: number | null }>(
+      `SELECT timer_started_ts FROM session_exercises
+        WHERE id = ? AND exercise_type = 'cardio'`,
+      [sessionExerciseId]
+    );
+    if (!block?.timer_started_ts) return;
+
+    const existing = await db.getFirstAsync<CardioEntry>(
+      'SELECT * FROM cardio_entries WHERE session_exercise_id = ?',
+      [sessionExerciseId]
+    );
+    const now = Date.now();
+    const durationSeconds =
+      (existing?.duration_seconds ?? 0) +
+      Math.max(1, Math.round((now - block.timer_started_ts) / 1000));
+    const finalDistance = distanceKm === undefined ? (existing?.distance_km ?? null) : distanceKm;
+    const finalNotes = notes === undefined ? (existing?.notes ?? null) : notes;
     await db.runAsync(
       `INSERT INTO cardio_entries
          (session_exercise_id, duration_seconds, distance_km, notes, ts)
@@ -313,11 +343,11 @@ export async function completeCardioExercise(
          distance_km = excluded.distance_km,
          notes = excluded.notes,
          ts = excluded.ts`,
-      [sessionExerciseId, durationSeconds, distanceKm, notes, now]
+      [sessionExerciseId, durationSeconds, finalDistance, finalNotes, now]
     );
     await db.runAsync(
       `UPDATE session_exercises
-          SET start_ts = COALESCE(start_ts, ?), end_ts = ?, status = 'done'
+          SET start_ts = COALESCE(start_ts, ?), end_ts = ?, status = 'done', timer_started_ts = NULL
         WHERE id = ?`,
       [now, now, sessionExerciseId]
     );
@@ -327,15 +357,14 @@ export async function completeCardioExercise(
 export async function updateCardioEntry(
   db: SQLiteDatabase,
   sessionExerciseId: number,
-  durationSeconds: number | null,
   distanceKm: number | null,
   notes: string | null
 ): Promise<void> {
   await db.runAsync(
     `UPDATE cardio_entries
-        SET duration_seconds = ?, distance_km = ?, notes = ?
+        SET distance_km = ?, notes = ?
       WHERE session_exercise_id = ?`,
-    [durationSeconds, distanceKm, notes, sessionExerciseId]
+    [distanceKm, notes, sessionExerciseId]
   );
 }
 
@@ -368,7 +397,6 @@ export async function addAdditionalExercise(
   exerciseName: string,
   esCorporal: boolean,
   exerciseType: TrainingType = 'strength',
-  cardioTracking: CardioTracking = 'both',
   trackingMode: ExerciseTracking = 'reps'
 ): Promise<number> {
   const row = await db.getFirstAsync<{ maxPos: number | null }>(
@@ -388,7 +416,7 @@ export async function addAdditionalExercise(
       esCorporal ? 1 : 0,
       position,
       exerciseType,
-      cardioTracking,
+      'both',
       trackingMode,
     ]
   );
@@ -407,11 +435,15 @@ export async function resumeSession(db: SQLiteDatabase, sessionId: number): Prom
 
 /** "Fin": cierra la sesión por completo y guarda la hora de finalización. */
 export async function finishSession(db: SQLiteDatabase, sessionId: number): Promise<void> {
-  const runningHoldSets = await db.getAllAsync<{ id: number }>(
-    'SELECT id FROM session_exercises WHERE session_id = ? AND timer_started_ts IS NOT NULL',
+  const runningTimers = await db.getAllAsync<{ id: number; exercise_type: TrainingType }>(
+    `SELECT id, exercise_type FROM session_exercises
+      WHERE session_id = ? AND timer_started_ts IS NOT NULL`,
     [sessionId]
   );
-  for (const block of runningHoldSets) await finishHoldSet(db, block.id);
+  for (const block of runningTimers) {
+    if (block.exercise_type === 'cardio') await completeCardioExercise(db, block.id);
+    else await finishHoldSet(db, block.id);
+  }
 
   const now = Date.now();
   const lastSet = await db.getFirstAsync<{ last_ts: number | null }>(
