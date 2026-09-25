@@ -27,7 +27,9 @@ publicar una versión.
 - **Registro corporal.** Personal permite registrar peso con histórico, altura y
   fecha de nacimiento, calculando la edad automáticamente. El usuario elige el
   día semanal de pesaje y activa el aviso desde Notificaciones. Los datos se
-  muestran en modo lectura y los campos solo aparecen al registrar o editar.
+  muestran en modo lectura debajo de la gráfica y los campos solo aparecen al
+  registrar o editar. Una campana indica si el recordatorio está activo y el
+  botón de registro se destaca cuando lo está.
   - *Modelo de datos:* nueva tabla `body_measurements` y esquema v3.
 - **Días de musculación, cardio y calistenia.** Las plantillas y sus sesiones se
   clasifican por tipo y se distinguen por color: musculación en naranja, cardio
@@ -56,6 +58,8 @@ publicar una versión.
   cerrada.
   - *Modelo de datos:* Cardio unificado, preferencia de notificaciones y esquema
     v7.
+- **Horario semanal de pesaje.** La sección Notificaciones muestra el selector
+  de día y hora únicamente cuando el recordatorio de peso está activado.
 - **Crear ejercicios al preparar un día.** La creación y edición de días permite
   abrir un formulario visible, elegir el tipo del ejercicio, crearlo y
   seleccionarlo al instante sin pasar antes por Ajustes.
@@ -91,6 +95,12 @@ publicar una versión.
 - **Entrada correcta de la fecha de nacimiento.** El teclado numérico solo
   requiere escribir ocho cifras; las barras de DD/MM/AAAA se añaden
   automáticamente.
+- **Barra inferior estable.** Las cinco posiciones quedan fijadas para conservar
+  Histórico visible y Entrenar en el centro. También se elimina el borde blanco
+  del botón central seleccionado.
+- **Interruptor de cronómetros persistente.** La preferencia permanece activada
+  aunque el entorno actual no incluya el módulo nativo de notificaciones y se
+  aplica al ejecutar una build instalada.
 
 ---
 

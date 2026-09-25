@@ -14,7 +14,7 @@ import { Button, ScreenTitle } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { CURRENT_VERSION } from '@/constants/patch-notes';
 import { useSession } from '@/context/session-context';
-import { getBodyProfile, setWeeklyWeightReminder } from '@/db/body';
+import { getBodyProfile, setWeeklyWeightReminder, setWeightReminderDay, setWeightReminderHour } from '@/db/body';
 import { createExercise, deleteExercise, listExercises } from '@/db/exercises';
 import { getDevNote, saveDevNote } from '@/db/notes';
 import type { Exercise, TrainingType } from '@/db/types';
@@ -25,6 +25,11 @@ import { useKeyboardHeight } from '@/lib/use-keyboard';
 import { getTimerNotificationsEnabled, setTimerNotificationsEnabled } from '@/lib/workout-notifications';
 
 const CATALOG_PREVIEW = 5;
+const WEEKDAYS = [
+  { value: 1, label: 'L' }, { value: 2, label: 'M' }, { value: 3, label: 'X' },
+  { value: 4, label: 'J' }, { value: 5, label: 'V' }, { value: 6, label: 'S' },
+  { value: 0, label: 'D' },
+];
 type InfoSection = 'notifications' | 'catalog' | 'days' | 'backup' | 'notes' | null;
 
 export default function AjustesScreen() {
@@ -35,7 +40,8 @@ export default function AjustesScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const keyboardHeight = useKeyboardHeight();
   const [weeklyWeightReminder, setWeeklyWeightReminderState] = useState(false);
-  const [weightReminderDay, setWeightReminderDay] = useState(1);
+  const [weightReminderDay, setWeightReminderDayState] = useState(1);
+  const [weightReminderHour, setWeightReminderHourState] = useState(9);
   const [timerNotifications, setTimerNotifications] = useState(false);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [catalogExpanded, setCatalogExpanded] = useState(false);
@@ -46,15 +52,17 @@ export default function AjustesScreen() {
   const [info, setInfo] = useState<InfoSection>(null);
 
   const load = useCallback(async () => {
-    const [profile, nextExercises, devNote, timersEnabled] = await Promise.all([
-      getBodyProfile(db), listExercises(db), getDevNote(db), getTimerNotificationsEnabled(db),
-    ]);
+    const profile = await getBodyProfile(db);
+    const nextExercises = await listExercises(db);
+    const devNote = await getDevNote(db);
+    const timersEnabled = await getTimerNotificationsEnabled(db);
     setWeeklyWeightReminderState(profile.weeklyWeightReminder);
-    setWeightReminderDay(profile.weightReminderDay);
+    setWeightReminderDayState(profile.weightReminderDay);
+    setWeightReminderHourState(profile.weightReminderHour);
     setTimerNotifications(timersEnabled);
     setExercises(nextExercises);
     setNote(devNote?.content ?? '');
-    if (profile.weeklyWeightReminder) void ensureWeeklyWeightReminder(profile.weightReminderDay);
+    if (profile.weeklyWeightReminder) void ensureWeeklyWeightReminder(profile.weightReminderDay, profile.weightReminderHour);
   }, [db]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
@@ -62,8 +70,21 @@ export default function AjustesScreen() {
   const handleWeeklyReminderChange = async (enabled: boolean) => {
     setWeeklyWeightReminderState(enabled);
     await setWeeklyWeightReminder(db, enabled);
-    if (enabled) await scheduleWeeklyWeightReminder(weightReminderDay);
+    if (enabled) await scheduleWeeklyWeightReminder(weightReminderDay, weightReminderHour);
     else await disableWeeklyWeightReminder();
+  };
+
+  const changeReminderDay = async (day: number) => {
+    setWeightReminderDayState(day);
+    await setWeightReminderDay(db, day);
+    await scheduleWeeklyWeightReminder(day, weightReminderHour);
+  };
+
+  const changeReminderHour = async (delta: number) => {
+    const hour = (weightReminderHour + delta + 24) % 24;
+    setWeightReminderHourState(hour);
+    await setWeightReminderHour(db, hour);
+    await scheduleWeeklyWeightReminder(weightReminderDay, hour);
   };
 
   const handleTimerNotificationsChange = async (enabled: boolean) => {
@@ -130,7 +151,32 @@ export default function AjustesScreen() {
           <SectionHeader icon="bell-outline" title="Notificaciones" section="notifications" info={info} setInfo={setInfo} />
           {info === 'notifications' ? <InfoText>Configura los avisos semanales de peso y los cronómetros visibles durante descansos, Aguante y Cardio.</InfoText> : null}
           <SettingRow icon="scale-bathroom" title="Recordatorio de peso"
-            subtitle="El día se elige en Personal" value={weeklyWeightReminder} onChange={handleWeeklyReminderChange} />
+            subtitle="Aviso semanal de pesaje" value={weeklyWeightReminder} onChange={handleWeeklyReminderChange} />
+          {weeklyWeightReminder ? (
+            <View style={styles.reminderSchedule}>
+              <Text style={styles.scheduleLabel}>Día del pesaje</Text>
+              <View style={styles.weekRow}>
+                {WEEKDAYS.map((day) => (
+                  <Pressable key={day.value} style={[styles.dayChip, weightReminderDay === day.value && styles.dayChipActive]}
+                    onPress={() => void changeReminderDay(day.value)}>
+                    <Text style={[styles.dayChipText, weightReminderDay === day.value && styles.dayChipTextActive]}>{day.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <View style={styles.hourRow}>
+                <Text style={styles.scheduleLabel}>Hora del aviso</Text>
+                <View style={styles.hourControl}>
+                  <Pressable style={styles.hourButton} onPress={() => void changeReminderHour(-1)}>
+                    <MaterialCommunityIcons name="minus" size={18} color={GymTheme.text} />
+                  </Pressable>
+                  <Text style={styles.hourText}>{String(weightReminderHour).padStart(2, '0')}:00</Text>
+                  <Pressable style={styles.hourButton} onPress={() => void changeReminderHour(1)}>
+                    <MaterialCommunityIcons name="plus" size={18} color={GymTheme.text} />
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          ) : null}
           <SettingRow icon="timer-outline" title="Cronómetros"
             subtitle="Descansos, Aguante y Cardio" value={timerNotifications} onChange={handleTimerNotificationsChange} />
         </View>
@@ -259,6 +305,19 @@ const styles = StyleSheet.create({
   settingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: 4 },
   settingTitle: { color: GymTheme.text, fontSize: 14, fontWeight: '700' },
   settingSub: { color: GymTheme.textFaint, fontSize: 11, marginTop: 2 },
+  reminderSchedule: { backgroundColor: GymTheme.surfaceAlt, borderRadius: Radius.md, padding: Spacing.md, gap: Spacing.sm },
+  scheduleLabel: { color: GymTheme.textMuted, fontSize: 12, fontWeight: '700' },
+  weekRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 5 },
+  dayChip: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: GymTheme.border,
+    backgroundColor: GymTheme.surface, alignItems: 'center', justifyContent: 'center' },
+  dayChipActive: { backgroundColor: GymTheme.primary, borderColor: GymTheme.primary },
+  dayChipText: { color: GymTheme.textMuted, fontSize: 12, fontWeight: '800' },
+  dayChipTextActive: { color: '#160B00' },
+  hourRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  hourControl: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  hourButton: { width: 34, height: 34, borderRadius: 17, backgroundColor: GymTheme.surface,
+    borderWidth: 1, borderColor: GymTheme.border, alignItems: 'center', justifyContent: 'center' },
+  hourText: { color: GymTheme.text, fontSize: 15, fontWeight: '800', minWidth: 48, textAlign: 'center' },
   exerciseRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 5 },
   exerciseName: { color: GymTheme.text, fontSize: 14, flex: 1, fontWeight: '600' },
   tag: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', backgroundColor: GymTheme.surfaceAlt, paddingHorizontal: 7, paddingVertical: 2, borderRadius: Radius.sm },

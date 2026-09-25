@@ -9,6 +9,7 @@ export interface BodyProfile {
   birthDate: string | null;
   weeklyWeightReminder: boolean;
   weightReminderDay: number;
+  weightReminderHour: number;
 }
 
 export async function getBodyProfile(db: SQLiteDatabase): Promise<BodyProfile> {
@@ -17,6 +18,7 @@ export async function getBodyProfile(db: SQLiteDatabase): Promise<BodyProfile> {
   const birthDate = await getSetting(db, 'birth_date');
   const reminder = await getSetting(db, 'weekly_weight_reminder');
   const reminderDay = Number(await getSetting(db, 'weekly_weight_day'));
+  const reminderHour = Number(await getSetting(db, 'weekly_weight_hour'));
   const weight = Number(weightValue);
   const height = Number(heightValue);
   return {
@@ -26,6 +28,8 @@ export async function getBodyProfile(db: SQLiteDatabase): Promise<BodyProfile> {
     weeklyWeightReminder: reminder === '1',
     weightReminderDay:
       Number.isInteger(reminderDay) && reminderDay >= 0 && reminderDay <= 6 ? reminderDay : 1,
+    weightReminderHour:
+      Number.isInteger(reminderHour) && reminderHour >= 0 && reminderHour <= 23 ? reminderHour : 9,
   };
 }
 
@@ -69,4 +73,9 @@ export async function setWeeklyWeightReminder(
 export async function setWeightReminderDay(db: SQLiteDatabase, day: number): Promise<void> {
   const safeDay = Number.isInteger(day) && day >= 0 && day <= 6 ? day : 1;
   await setSetting(db, 'weekly_weight_day', String(safeDay));
+}
+
+export async function setWeightReminderHour(db: SQLiteDatabase, hour: number): Promise<void> {
+  const safeHour = Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : 9;
+  await setSetting(db, 'weekly_weight_hour', String(safeHour));
 }

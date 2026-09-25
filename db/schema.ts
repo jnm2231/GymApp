@@ -276,6 +276,9 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
   await db.runAsync(
     `INSERT OR IGNORE INTO settings (key, value) VALUES ('weekly_weight_day', '1')`
   );
+  await db.runAsync(
+    `INSERT OR IGNORE INTO settings (key, value) VALUES ('weekly_weight_hour', '9')`
+  );
 }
 
 export const DATABASE_NAME = 'gymapp.db';

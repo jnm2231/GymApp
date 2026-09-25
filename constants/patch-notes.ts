@@ -52,7 +52,7 @@ export const PATCH_NOTES: VersionNotes[] = [
       {
         title: 'Registro corporal',
         detail:
-          'Personal muestra peso, altura y edad en modo lectura. Los formularios aparecen solo al registrar peso o editar los datos, y también se puede elegir el día semanal de pesaje.',
+          'La evolución del peso y el registro corporal comparten una única tarjeta. Edad, altura y último peso se muestran en lectura, con formularios bajo demanda e indicador visual del recordatorio.',
       },
       {
         title: 'Días de musculación, cardio y calistenia',
@@ -73,6 +73,11 @@ export const PATCH_NOTES: VersionNotes[] = [
         title: 'Cronómetros en notificaciones',
         detail:
           'Un ajuste permite mostrar el tiempo transcurrido durante descansos, ejercicios de Aguante y Cardio. En Android el cronómetro continúa contando con la aplicación cerrada.',
+      },
+      {
+        title: 'Horario semanal de pesaje',
+        detail:
+          'Al activar el aviso de peso desde Notificaciones se puede elegir tanto el día de la semana como la hora exacta del recordatorio.',
       },
       {
         title: 'Crear ejercicios al preparar un día',
@@ -130,6 +135,16 @@ export const PATCH_NOTES: VersionNotes[] = [
         title: 'Entrada correcta de la fecha de nacimiento',
         detail:
           'El teclado numérico ya no exige introducir barras: la aplicación forma automáticamente la fecha DD/MM/AAAA.',
+      },
+      {
+        title: 'Barra inferior estable',
+        detail:
+          'Se fijan las cinco posiciones de navegación para mantener Histórico visible y Entrenar siempre en el centro, sin el borde blanco al seleccionarlo.',
+      },
+      {
+        title: 'El interruptor de cronómetros conserva su estado',
+        detail:
+          'La preferencia ya no se desactiva automáticamente en entornos sin el módulo nativo y queda preparada para funcionar en la aplicación instalada.',
       },
     ],
   },

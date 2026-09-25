@@ -25,7 +25,9 @@ export default function TabLayout() {
         tabBarActiveTintColor: GymTheme.primary,
         tabBarInactiveTintColor: GymTheme.textFaint,
         tabBarLabelStyle: styles.label,
+        tabBarItemStyle: styles.tabItem,
         tabBarStyle: styles.bar,
+        lazy: false,
       }}>
       <Tabs.Screen
         name="personal"
@@ -84,7 +86,8 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   label: { fontSize: 10, fontWeight: '700' },
-  trainingItem: { overflow: 'visible' },
+  tabItem: { flex: 1, minWidth: 0 },
+  trainingItem: { flex: 1, minWidth: 0, overflow: 'visible' },
   trainingAction: {
     width: 76,
     alignItems: 'center',
@@ -105,7 +108,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 9,
   },
-  trainingCircleFocused: { borderColor: GymTheme.text },
+  trainingCircleFocused: { transform: [{ scale: 1.06 }] },
   trainingLabel: {
     color: GymTheme.textMuted,
     fontSize: 10,

@@ -87,11 +87,18 @@ export async function setTimerNotificationsEnabled(
   db: SQLiteDatabase,
   enabled: boolean
 ): Promise<boolean> {
+  // La preferencia se conserva incluso si el entorno actual (por ejemplo,
+  // Expo Go) no incluye el módulo nativo. Al abrir una build instalada queda
+  // activa sin obligar al usuario a configurarla de nuevo.
+  await setSetting(db, TIMER_NOTIFICATION_SETTING, enabled ? '1' : '0');
   if (enabled) {
     const Notifications = await configureWorkoutNotifications();
-    if (!Notifications || !(await ensureNotificationsPermission(Notifications))) return false;
+    if (!Notifications) return true;
+    if (!(await ensureNotificationsPermission(Notifications))) {
+      await setSetting(db, TIMER_NOTIFICATION_SETTING, '0');
+      return false;
+    }
   }
-  await setSetting(db, TIMER_NOTIFICATION_SETTING, enabled ? '1' : '0');
   if (!enabled) await cancelAllTimerNotifications();
   return true;
 }
