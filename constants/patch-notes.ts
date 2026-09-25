@@ -47,12 +47,12 @@ export const PATCH_NOTES: VersionNotes[] = [
       {
         title: 'Histórico global de ejercicios',
         detail:
-          'El histórico muestra todos los ejercicios realizados, excluye los que nunca se han entrenado y permite ordenarlos por nombre, número de veces realizado o mejor 1RM. Cada ejercicio indica además su número total de realizaciones.',
+          'El histórico permite alternar entre todos los ejercicios realizados y una vista por días desplegables. La lista global se puede ordenar por nombre, número de veces realizado o mejor 1RM.',
       },
       {
         title: 'Registro corporal',
         detail:
-          'Personal permite registrar peso con histórico, altura y fecha de nacimiento, calculando la edad automáticamente. También permite elegir el día semanal de pesaje.',
+          'Personal muestra peso, altura y edad en modo lectura. Los formularios aparecen solo al registrar peso o editar los datos, y también se puede elegir el día semanal de pesaje.',
       },
       {
         title: 'Días de musculación, cardio y calistenia',
@@ -77,7 +77,12 @@ export const PATCH_NOTES: VersionNotes[] = [
       {
         title: 'Crear ejercicios al preparar un día',
         detail:
-          'La pantalla de creación y edición de días permite añadir un ejercicio nuevo, configurarlo según el tipo de entrenamiento y seleccionarlo al instante, sin pasar por Ajustes.',
+          'La pantalla de creación y edición de días incluye un acceso visible para crear un ejercicio, elegir su tipo y seleccionarlo al instante sin pasar por Ajustes.',
+      },
+      {
+        title: 'Detalle interactivo en los gráficos',
+        detail:
+          'Al pulsar un punto del gráfico de 1RM aparece la fecha del entrenamiento junto con los pesos y repeticiones registrados.',
       },
       {
         title: 'Nueva sección Personal',

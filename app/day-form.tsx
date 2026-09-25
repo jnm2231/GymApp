@@ -143,11 +143,47 @@ export default function DayFormScreen() {
           Puedes mezclar tipos. El número indica el orden dentro del entrenamiento.
         </Text>
 
+        <Pressable
+          style={styles.createExerciseButton}
+          onPress={() => {
+            setNewExerciseType((current) => current == null ? trainingType : null);
+            setNewExerciseName('');
+          }}>
+          <MaterialCommunityIcons
+            name={newExerciseType == null ? 'plus-circle-outline' : 'close'}
+            size={20}
+            color={GymTheme.primary}
+          />
+          <Text style={styles.createExerciseButtonText}>
+            {newExerciseType == null ? 'Crear ejercicio nuevo' : 'Cerrar creación'}
+          </Text>
+        </Pressable>
+
+        {newExerciseType != null ? (
+          <View style={styles.createCard}>
+            <Text style={styles.createTitle}>Nuevo ejercicio</Text>
+            <View style={styles.typeRow}>
+              {TRAINING_TYPES.map((type) => (
+                <Pressable key={type.value}
+                  style={[styles.typeChip, newExerciseType === type.value && { borderColor: type.color, backgroundColor: type.dimColor }]}
+                  onPress={() => setNewExerciseType(type.value)}>
+                  <MaterialCommunityIcons name={type.icon} size={16} color={type.color} />
+                  <Text style={[styles.typeText, newExerciseType === type.value && { color: type.color }]}>{type.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <TextInput style={styles.input}
+              placeholder={newExerciseType === 'cardio' ? 'Ej: Cinta de correr' : 'Nombre del ejercicio'}
+              placeholderTextColor={GymTheme.textFaint} value={newExerciseName}
+              onChangeText={setNewExerciseName} returnKeyType="done" onSubmitEditing={handleCreateExercise} />
+            <Button title="Crear y seleccionar" onPress={handleCreateExercise} />
+          </View>
+        ) : null}
+
         {orderedTypes.map((type) => {
           const expanded = expandedTypes.includes(type.value);
           const exercises = catalog.filter((exercise) => exercise.exercise_type === type.value);
           const selectedCount = exercises.filter((exercise) => selected.includes(exercise.id)).length;
-          const creatingHere = newExerciseType === type.value;
           return (
             <View key={type.value} style={[styles.exerciseGroup, { borderColor: type.color }]}>
               <Pressable
@@ -212,39 +248,6 @@ export default function DayFormScreen() {
                       );
                     })
                   )}
-
-                  <Pressable
-                    style={[styles.createToggle, { borderColor: type.color }]}
-                    onPress={() => {
-                      setNewExerciseType(creatingHere ? null : type.value);
-                      setNewExerciseName('');
-                    }}>
-                    <MaterialCommunityIcons
-                      name={creatingHere ? 'chevron-up' : 'plus-circle-outline'}
-                      size={19}
-                      color={type.color}
-                    />
-                    <Text style={[styles.createToggleText, { color: type.color }]}>
-                      {creatingHere ? 'Cerrar' : `Crear ejercicio de ${type.label.toLowerCase()}`}
-                    </Text>
-                  </Pressable>
-
-                  {creatingHere ? (
-                    <View style={[styles.createCard, { borderColor: type.color }]}>
-                      <Text style={styles.createTitle}>Nuevo ejercicio de {type.label.toLowerCase()}</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder={type.value === 'cardio' ? 'Ej: Cinta de correr' : 'Nombre del ejercicio'}
-                        placeholderTextColor={GymTheme.textFaint}
-                        value={newExerciseName}
-                        onChangeText={setNewExerciseName}
-                        returnKeyType="done"
-                        onSubmitEditing={handleCreateExercise}
-                      />
-
-                      <Button title="Crear y seleccionar" onPress={handleCreateExercise} />
-                    </View>
-                  ) : null}
                 </View>
               ) : null}
             </View>
@@ -328,20 +331,22 @@ const styles = StyleSheet.create({
   },
   orderNum: { color: '#0C0C0E', fontWeight: '800', fontSize: 14 },
   exName: { color: GymTheme.text, fontSize: 15, flex: 1, fontWeight: '500' },
-  createToggle: {
+  createExerciseButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
+    borderColor: GymTheme.primary,
     borderStyle: 'dashed',
     borderRadius: Radius.md,
     paddingVertical: Spacing.md,
-    marginTop: Spacing.md,
+    backgroundColor: GymTheme.primaryDim,
   },
-  createToggleText: { fontSize: 14, fontWeight: '800' },
+  createExerciseButtonText: { color: GymTheme.primary, fontSize: 14, fontWeight: '800', marginLeft: 6 },
   createCard: {
     backgroundColor: GymTheme.surface,
     borderWidth: 1,
+    borderColor: GymTheme.border,
     borderRadius: Radius.md,
     padding: Spacing.md,
     gap: Spacing.md,

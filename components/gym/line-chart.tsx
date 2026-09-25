@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
 
@@ -6,6 +7,10 @@ import { GymTheme } from '@/constants/gym-theme';
 export interface ChartPoint {
   value: number;
   label: string; // etiqueta del eje X (fecha corta)
+  tooltip?: {
+    title: string;
+    lines: string[];
+  };
 }
 
 /**
@@ -24,6 +29,7 @@ export function LineChart({
   color?: string;
   valueFormatter?: (value: number) => string;
 }) {
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const height = 200;
   const padL = 38;
   const padR = 14;
@@ -67,7 +73,14 @@ export function LineChart({
   const maxLabels = Math.max(2, Math.floor(innerW / 56));
   const step = Math.ceil(points.length / maxLabels);
 
+  const selected = selectedIndex == null ? null : points[selectedIndex];
+  const tooltipWidth = Math.min(190, width - 16);
+  const tooltipLeft = selectedIndex == null
+    ? 0
+    : Math.max(8, Math.min(width - tooltipWidth - 8, xAt(selectedIndex) - tooltipWidth / 2));
+
   return (
+    <View style={{ width, height }}>
     <Svg width={width} height={height}>
       {guides.map((g, idx) => (
         <Line
@@ -105,6 +118,11 @@ export function LineChart({
         <Circle key={`c${i}`} cx={xAt(i)} cy={yAt(p.value)} r={3.5} fill={color} />
       ))}
 
+      {points.map((p, i) => p.tooltip ? (
+        <Circle key={`hit${i}`} cx={xAt(i)} cy={yAt(p.value)} r={14} fill="transparent"
+          onPress={() => setSelectedIndex((current) => current === i ? null : i)} />
+      ) : null)}
+
       {points.map((p, i) =>
         i % step === 0 || i === points.length - 1 ? (
           <SvgText
@@ -119,10 +137,21 @@ export function LineChart({
         ) : null
       )}
     </Svg>
+    {selected?.tooltip ? (
+      <View pointerEvents="none" style={[styles.tooltip, { width: tooltipWidth, left: tooltipLeft }]}>
+        <Text style={styles.tooltipTitle}>{selected.tooltip.title}</Text>
+        {selected.tooltip.lines.map((line, index) => <Text key={index} style={styles.tooltipLine}>{line}</Text>)}
+      </View>
+    ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   empty: { alignItems: 'center', justifyContent: 'center' },
   emptyText: { color: GymTheme.textFaint, fontSize: 13 },
+  tooltip: { position: 'absolute', top: 8, backgroundColor: GymTheme.surfaceElevated,
+    borderWidth: 1, borderColor: GymTheme.primary, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 8 },
+  tooltipTitle: { color: GymTheme.text, fontSize: 12, fontWeight: '800', marginBottom: 2 },
+  tooltipLine: { color: GymTheme.textMuted, fontSize: 11, lineHeight: 15 },
 });

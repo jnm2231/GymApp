@@ -19,8 +19,8 @@ entrenamientos. **Todos los datos se guardan únicamente en el dispositivo**
 | **Entreno (Inicio)** | Lista de tus días de entrenamiento. Botón para crear/editar días eligiendo ejercicios del catálogo. Al empezar, esta misma pestaña pasa a ser la sesión activa. |
 | **Sesión activa** | Bloques de ejercicio con **peso global por ejercicio**, registro de **series inline** (tick verde) y **cálculo del descanso** respecto a la serie anterior. El ejercicio activo se resalta en verde; puedes **cambiar el orden libremente**, **posponer** un ejercicio empezado y añadir **ejercicios adicionales**. Al terminar un bloque, las series se **colapsan** (`12-12-12-10`). Controles globales **Guardar** (pausar) y **Fin**. |
 | **Calendario** | Vista mensual a pantalla completa con marcadores del tipo de día entrenado, swipe animado entre meses y selector rápido de mes/año. Drill-down: día → tipo de día → ejercicios → histórico. |
-| **Histórico** | Drill-down día → ejercicio → gráfico de **1RM promedio** (eje X equiespaciado) y lista de registros con peso, repeticiones y descansos. |
-| **Personal** | Registro corporal, evolución completa del peso, día semanal de pesaje y calendario de actividad estilo GitHub. |
+| **Histórico** | Selector por ejercicios o días desplegables, gráfico interactivo de **1RM promedio** y registros con peso, repeticiones y descansos. |
+| **Personal** | Peso, altura y edad en lectura, formularios bajo demanda, evolución del peso, día semanal de pesaje y calendario de actividad estilo GitHub. |
 | **Ajustes** | Notificaciones, catálogo de ejercicios, **copias de seguridad** y notas de desarrollo en un panel compacto. |
 
 ### Reglas de negocio destacadas

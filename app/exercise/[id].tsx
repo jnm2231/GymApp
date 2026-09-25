@@ -45,6 +45,10 @@ export default function ExerciseDetailScreen() {
   const points: ChartPoint[] = history.map((h) => ({
     value: averageOneRepMax(h.sets, h.weight ?? 0, h.es_corporal === 1, h.user_weight ?? 0),
     label: shortDate(h.session_start_ts),
+    tooltip: {
+      title: formatDate(h.session_start_ts),
+      lines: historyPointLines(h),
+    },
   }));
   const isCardio = history[0]?.exercise_type === 'cardio';
   const isHold = history[0]?.exercise_type === 'hold';
@@ -167,6 +171,15 @@ function RecordCard({ entry, name }: { entry: ExerciseHistoryEntry; name: string
 function shortDate(ts: number): string {
   const d = new Date(ts);
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function historyPointLines(entry: ExerciseHistoryEntry): string[] {
+  const weights = entry.sets.map((set) => set.weight ?? entry.weight ?? 0);
+  const uniqueWeights = [...new Set(weights)];
+  const weightLine = uniqueWeights.length === 1
+    ? `Peso: ${uniqueWeights[0]} kg${entry.es_corporal === 1 ? ` + ${Math.round(entry.user_weight ?? 0)} kg corporal` : ''}`
+    : `Pesos: ${entry.sets.map((set, index) => `${weights[index]} kg`).join(' · ')}`;
+  return [weightLine, `Repeticiones: ${entry.sets.map((set) => set.reps).join(' · ')}`];
 }
 
 const styles = StyleSheet.create({

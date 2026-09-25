@@ -33,6 +33,8 @@ export default function PersonalScreen() {
   const [birthDate, setBirthDate] = useState('');
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [weighInDay, setWeighInDay] = useState(1);
+  const [weightFormOpen, setWeightFormOpen] = useState(false);
+  const [profileEditing, setProfileEditing] = useState(false);
 
   const load = useCallback(async () => {
     const [nextWeights, nextActivity, profile] = await Promise.all([
@@ -57,6 +59,7 @@ export default function PersonalScreen() {
     }
     await recordBodyWeight(db, value);
     if (reminderEnabled) await scheduleWeeklyWeightReminder(weighInDay);
+    setWeightFormOpen(false);
     await load();
   };
 
@@ -72,6 +75,7 @@ export default function PersonalScreen() {
       return;
     }
     await saveBodyProfile(db, height.trim() ? heightCm : null, birthDateIso);
+    setProfileEditing(false);
     await load();
   };
 
@@ -92,34 +96,59 @@ export default function PersonalScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Card style={styles.card}>
           <SectionTitle icon="scale-bathroom" title="Registro corporal" />
-          <Text style={styles.fieldLabel}>Peso actual</Text>
-          <View style={styles.inlineField}>
-            <TextInput style={[styles.input, { flex: 1 }]} placeholder="0" placeholderTextColor={GymTheme.textFaint}
-              keyboardType="decimal-pad" value={weight} onChangeText={setWeight} onSubmitEditing={registerWeight} />
-            <Text style={styles.unit}>kg</Text>
-            <SaveButton title="Registrar" onPress={registerWeight} />
+          <View style={styles.dataRow}>
+            <DataValue label="Peso" value={latest ? `${latest.weight} kg` : 'Sin registrar'} />
+            <DataValue label="Altura" value={height ? `${height} cm` : 'Sin registrar'} />
+            <DataValue label="Edad" value={birthDateIso ? `${ageFromIso(birthDateIso)} años` : 'Sin registrar'} />
           </View>
 
-          <View style={styles.profileRow}>
-            <View style={{ flex: 0.8 }}>
-              <Text style={styles.fieldLabel}>Altura</Text>
+          <View style={styles.actionRow}>
+            <Pressable style={styles.secondaryAction} onPress={() => setWeightFormOpen((open) => !open)}>
+              <MaterialCommunityIcons name="scale-bathroom" size={17} color={GymTheme.primary} />
+              <Text style={styles.secondaryActionText}>Registrar peso</Text>
+            </Pressable>
+            <Pressable style={styles.secondaryAction} onPress={() => setProfileEditing((editing) => !editing)}>
+              <MaterialCommunityIcons name="pencil-outline" size={17} color={GymTheme.primary} />
+              <Text style={styles.secondaryActionText}>{height || birthDate ? 'Editar datos' : 'Registrar datos'}</Text>
+            </Pressable>
+          </View>
+
+          {weightFormOpen ? (
+            <View style={styles.formPanel}>
+              <Text style={styles.fieldLabel}>Nuevo peso</Text>
               <View style={styles.inlineField}>
-                <TextInput style={[styles.input, { flex: 1, minWidth: 0 }]} placeholder="175"
-                  placeholderTextColor={GymTheme.textFaint} keyboardType="decimal-pad" value={height} onChangeText={setHeight} />
-                <Text style={styles.unit}>cm</Text>
+                <TextInput style={[styles.input, { flex: 1 }]} placeholder="0" placeholderTextColor={GymTheme.textFaint}
+                  keyboardType="decimal-pad" value={weight} onChangeText={setWeight} onSubmitEditing={registerWeight} autoFocus />
+                <Text style={styles.unit}>kg</Text>
+                <SaveButton title="Guardar" onPress={registerWeight} />
               </View>
             </View>
-            <View style={{ flex: 1.25 }}>
-              <Text style={styles.fieldLabel}>Fecha de nacimiento</Text>
-              <TextInput style={styles.input} placeholder="DD/MM/AAAA" placeholderTextColor={GymTheme.textFaint}
-                keyboardType="number-pad" value={birthDate}
-                onChangeText={(value) => setBirthDate(formatBirthDateInput(value))} maxLength={10} />
+          ) : null}
+
+          {profileEditing ? (
+            <View style={styles.formPanel}>
+              <View style={styles.profileRow}>
+                <View style={{ flex: 0.8 }}>
+                  <Text style={styles.fieldLabel}>Altura</Text>
+                  <View style={styles.inlineField}>
+                    <TextInput style={[styles.input, { flex: 1, minWidth: 0 }]} placeholder="175"
+                      placeholderTextColor={GymTheme.textFaint} keyboardType="decimal-pad" value={height} onChangeText={setHeight} />
+                    <Text style={styles.unit}>cm</Text>
+                  </View>
+                </View>
+                <View style={{ flex: 1.25 }}>
+                  <Text style={styles.fieldLabel}>Fecha de nacimiento</Text>
+                  <TextInput style={styles.input} placeholder="DD/MM/AAAA" placeholderTextColor={GymTheme.textFaint}
+                    keyboardType="number-pad" value={birthDate}
+                    onChangeText={(value) => setBirthDate(formatBirthDateInput(value))} maxLength={10} />
+                </View>
+              </View>
+              <View style={styles.profileFooter}>
+                <Pressable onPress={() => { setProfileEditing(false); void load(); }}><Text style={styles.cancelText}>Cancelar</Text></Pressable>
+                <SaveButton title="Guardar datos" onPress={saveProfile} />
+              </View>
             </View>
-          </View>
-          <View style={styles.profileFooter}>
-            <Text style={styles.ageText}>{birthDateIso ? `${ageFromIso(birthDateIso)} años` : ''}</Text>
-            <SaveButton title="Guardar datos" onPress={saveProfile} />
-          </View>
+          ) : null}
 
           <View style={styles.divider} />
           <Text style={styles.fieldLabel}>Día habitual de pesaje</Text>
@@ -172,6 +201,10 @@ function SectionTitle({ icon, title, active = false }: {
   );
 }
 
+function DataValue({ label, value }: { label: string; value: string }) {
+  return <View style={styles.dataValue}><Text style={styles.dataLabel}>{label}</Text><Text style={styles.dataText}>{value}</Text></View>;
+}
+
 function shortDate(timestamp: number): string {
   const date = new Date(timestamp);
   return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -218,6 +251,15 @@ const styles = StyleSheet.create({
   iconBox: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   cardTitle: { color: GymTheme.text, fontSize: 18, fontWeight: '800' },
   fieldLabel: { color: GymTheme.textMuted, fontSize: 12, fontWeight: '700' },
+  dataRow: { flexDirection: 'row', gap: Spacing.sm },
+  dataValue: { flex: 1, backgroundColor: GymTheme.surfaceAlt, borderRadius: Radius.md, padding: Spacing.md, gap: 3 },
+  dataLabel: { color: GymTheme.textFaint, fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
+  dataText: { color: GymTheme.text, fontSize: 14, fontWeight: '800' },
+  actionRow: { flexDirection: 'row', gap: Spacing.sm },
+  secondaryAction: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    borderWidth: 1, borderColor: GymTheme.border, borderRadius: Radius.md, paddingVertical: 10, backgroundColor: GymTheme.surfaceAlt },
+  secondaryActionText: { color: GymTheme.text, fontSize: 12, fontWeight: '800' },
+  formPanel: { backgroundColor: GymTheme.surfaceAlt, borderRadius: Radius.md, padding: Spacing.md, gap: Spacing.md },
   inlineField: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   input: { backgroundColor: GymTheme.inputBg, borderWidth: 1, borderColor: GymTheme.border,
     borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 11, color: GymTheme.text, fontSize: 15 },
@@ -225,6 +267,7 @@ const styles = StyleSheet.create({
   profileRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.md },
   profileFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   ageText: { color: GymTheme.primary, fontSize: 13, fontWeight: '700' },
+  cancelText: { color: GymTheme.textMuted, fontSize: 13, fontWeight: '700' },
   divider: { height: 1, backgroundColor: GymTheme.border },
   weekRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 5 },
   dayChip: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: GymTheme.border,

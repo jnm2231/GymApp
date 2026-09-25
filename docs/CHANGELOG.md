@@ -22,10 +22,12 @@ publicar una versión.
 - **Histórico global de ejercicios.** La pestaña Histórico muestra todos los
   ejercicios realizados, excluye los que nunca se han entrenado y permite
   ordenarlos por nombre, número de veces realizado o mejor 1RM. Cada histórico
-  individual indica también cuántas veces se realizó el ejercicio.
+  individual indica también cuántas veces se realizó el ejercicio. Un selector
+  permite cambiar a una vista por días, donde cada plantilla es desplegable.
 - **Registro corporal.** Personal permite registrar peso con histórico, altura y
   fecha de nacimiento, calculando la edad automáticamente. El usuario elige el
-  día semanal de pesaje y activa el aviso desde Notificaciones.
+  día semanal de pesaje y activa el aviso desde Notificaciones. Los datos se
+  muestran en modo lectura y los campos solo aparecen al registrar o editar.
   - *Modelo de datos:* nueva tabla `body_measurements` y esquema v3.
 - **Días de musculación, cardio y calistenia.** Las plantillas y sus sesiones se
   clasifican por tipo y se distinguen por color: musculación en naranja, cardio
@@ -55,8 +57,10 @@ publicar una versión.
   - *Modelo de datos:* Cardio unificado, preferencia de notificaciones y esquema
     v7.
 - **Crear ejercicios al preparar un día.** La creación y edición de días permite
-  añadir un ejercicio del tipo correspondiente, configurarlo y seleccionarlo al
-  instante sin tener que pasar antes por Ajustes.
+  abrir un formulario visible, elegir el tipo del ejercicio, crearlo y
+  seleccionarlo al instante sin pasar antes por Ajustes.
+- **Detalle interactivo en los gráficos.** Al pulsar un nodo del gráfico de 1RM
+  se muestra la fecha del entrenamiento, el peso y las repeticiones registradas.
 - **Nueva sección Personal.** La nueva pestaña reúne la evolución completa del
   peso, el registro corporal y un calendario de actividad estilo GitHub que
   representa la frecuencia e intensidad de los entrenamientos del último año.
