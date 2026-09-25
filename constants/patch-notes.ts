@@ -82,7 +82,7 @@ export const PATCH_NOTES: VersionNotes[] = [
       {
         title: 'Seguimiento de peso opcional',
         detail:
-          'Ajustes permite desactivar por completo el registro semanal. Personal pasa entonces a mostrar únicamente peso, altura y edad en modo lectura.',
+          'Ajustes permite desactivar el registro semanal. Personal oculta la gráfica y los controles de peso, mantiene peso, altura y edad en lectura y conserva la frecuencia de entrenamiento.',
       },
       {
         title: 'Crear ejercicios al preparar un día',
@@ -144,7 +144,7 @@ export const PATCH_NOTES: VersionNotes[] = [
       {
         title: 'Barra inferior estable',
         detail:
-          'Se fijan las cinco posiciones de navegación para mantener Histórico visible y Entrenar siempre en el centro, sin el borde blanco al seleccionarlo.',
+          'Se fijan las cinco posiciones de navegación para mantener Histórico visible y Entrenar siempre en el centro, sin bordes ni destellos blancos al pulsar las pestañas.',
       },
       {
         title: 'Calistenia correctamente diferenciada',

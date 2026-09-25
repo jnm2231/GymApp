@@ -62,8 +62,9 @@ publicar una versión.
   de día y hora únicamente cuando el recordatorio de peso está activado. La hora
   se elige con el control nativo del sistema e incluye horas y minutos.
 - **Seguimiento de peso opcional.** Un interruptor maestro permite desactivar el
-  registro semanal. En ese estado Personal oculta gráficas, campana y controles,
-  y muestra únicamente peso, altura y edad en modo lectura.
+  registro semanal. En ese estado Personal oculta la gráfica, la campana y los
+  controles de peso; mantiene peso, altura y edad en lectura y conserva el
+  calendario de frecuencia de entrenamiento.
 - **Crear ejercicios al preparar un día.** La creación y edición de días permite
   abrir un formulario visible, elegir el tipo del ejercicio, crearlo y
   seleccionarlo al instante sin pasar antes por Ajustes.
@@ -101,8 +102,8 @@ publicar una versión.
   requiere escribir ocho cifras; las barras de DD/MM/AAAA se añaden
   automáticamente.
 - **Barra inferior estable.** Las cinco posiciones quedan fijadas para conservar
-  Histórico visible y Entrenar en el centro. También se elimina el borde blanco
-  del botón central seleccionado.
+  Histórico visible y Entrenar en el centro. También se eliminan el borde blanco
+  del botón central y el destello claro al pulsar cualquier pestaña.
 - **Calistenia correctamente diferenciada.** En crear y editar plantillas se
   muestra «Día de Calistenia», mientras que «Corporal» queda reservado para los
   ejercicios. El tipo del día se puede cambiar al editar sin perder la selección.

@@ -4,6 +4,7 @@ import React from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import { GymTheme } from '@/constants/gym-theme';
+import { HapticTab } from '@/components/haptic-tab';
 
 function TrainingAction({ focused }: { focused: boolean }) {
   return (
@@ -34,6 +35,7 @@ export default function TabLayout() {
         tabBarLabelStyle: styles.label,
         tabBarItemStyle: styles.tabItem,
         tabBarStyle: styles.bar,
+        tabBarButton: HapticTab,
         lazy: false,
       }}>
       <Tabs.Screen

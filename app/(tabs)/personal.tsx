@@ -181,17 +181,15 @@ export default function PersonalScreen() {
           ) : null}
         </Card>
 
-        {weightTrackingEnabled ? (
-          <Card style={styles.card}>
-            <View style={styles.cardHeader}>
-              <View style={[styles.iconBox, { backgroundColor: GymTheme.activeDim }]}>
-                <MaterialCommunityIcons name="calendar-check" size={21} color={GymTheme.active} />
-              </View>
-              <Text style={styles.cardTitle}>Frecuencia de entrenamiento</Text>
+        <Card style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={[styles.iconBox, { backgroundColor: GymTheme.activeDim }]}>
+              <MaterialCommunityIcons name="calendar-check" size={21} color={GymTheme.active} />
             </View>
-            <ActivityHeatmap activity={activity} />
-          </Card>
-        ) : null}
+            <Text style={styles.cardTitle}>Frecuencia de entrenamiento</Text>
+          </View>
+          <ActivityHeatmap activity={activity} />
+        </Card>
       </ScrollView>
     </Screen>
   );
