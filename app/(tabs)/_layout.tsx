@@ -8,8 +8,15 @@ import { GymTheme } from '@/constants/gym-theme';
 function TrainingAction({ focused }: { focused: boolean }) {
   return (
     <View style={styles.trainingAction}>
+      {focused ? (
+        <>
+          <View style={styles.trainingGlowFar} />
+          <View style={styles.trainingGlowMid} />
+          <View style={styles.trainingGlowNear} />
+        </>
+      ) : null}
       <View style={[styles.trainingCircle, focused && styles.trainingCircleFocused]}>
-        <MaterialCommunityIcons name="dumbbell" size={27} color="#160B00" />
+        <MaterialCommunityIcons name="dumbbell" size={27} color={focused ? GymTheme.primary : '#160B00'} />
       </View>
       <Text style={[styles.trainingLabel, focused && styles.trainingLabelFocused]}>Entrenar</Text>
     </View>
@@ -90,8 +97,22 @@ const styles = StyleSheet.create({
   trainingItem: { flex: 1, minWidth: 0, overflow: 'visible' },
   trainingAction: {
     width: 76,
+    height: 78,
     alignItems: 'center',
     transform: [{ translateY: -14 }],
+  },
+  trainingGlowFar: {
+    position: 'absolute', top: -10, width: 82, height: 82, borderRadius: 41,
+    backgroundColor: 'rgba(255,255,255,0.035)',
+  },
+  trainingGlowMid: {
+    position: 'absolute', top: -5, width: 72, height: 72, borderRadius: 36,
+    backgroundColor: 'rgba(255,255,255,0.065)',
+  },
+  trainingGlowNear: {
+    position: 'absolute', top: 0, width: 62, height: 62, borderRadius: 31,
+    backgroundColor: 'rgba(255,255,255,0.12)', shadowColor: '#FFFFFF', shadowOpacity: 0.35,
+    shadowRadius: 14, shadowOffset: { width: 0, height: 0 }, elevation: 7,
   },
   trainingCircle: {
     width: 58,
@@ -107,8 +128,15 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
     elevation: 9,
+    zIndex: 2,
   },
-  trainingCircleFocused: { transform: [{ scale: 1.06 }] },
+  trainingCircleFocused: {
+    transform: [{ scale: 1.06 }],
+    backgroundColor: GymTheme.background,
+    borderColor: GymTheme.primary,
+    shadowColor: '#FFFFFF',
+    shadowOpacity: 0.22,
+  },
   trainingLabel: {
     color: GymTheme.textMuted,
     fontSize: 10,

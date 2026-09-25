@@ -111,7 +111,7 @@ export default function DayFormScreen() {
           returnKeyType="done"
         />
 
-        <Text style={[styles.label, { marginTop: Spacing.md }]}>Tipo de entrenamiento</Text>
+        <Text style={[styles.label, { marginTop: Spacing.md }]}>Tipo de día</Text>
         <View style={styles.typeRow}>
           {DAY_TYPES.map((type) => (
             <Pressable
@@ -129,12 +129,14 @@ export default function DayFormScreen() {
               }}>
               <MaterialCommunityIcons name={type.icon} size={17} color={type.color} />
               <Text style={[styles.typeText, trainingType === type.value && { color: type.color }]}>
-                {type.label}
+                Día de {type.label}
               </Text>
             </Pressable>
           ))}
         </View>
-        <Text style={styles.hint}>Define el color del día y el grupo de ejercicios que se abre primero.</Text>
+        <Text style={styles.hint}>
+          {isEdit ? 'Puedes cambiar el tipo sin perder los ejercicios seleccionados.' : 'Define el color del día y el grupo que se abre primero.'}
+        </Text>
 
         <Text style={[styles.label, { marginTop: Spacing.lg }]}>
           Ejercicios {selected.length > 0 ? `(${selected.length})` : ''}
@@ -197,7 +199,7 @@ export default function DayFormScreen() {
                 }>
                 <MaterialCommunityIcons name={type.icon} size={19} color={type.color} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.groupTitle, { color: type.color }]}>{type.label}</Text>
+                  <Text style={[styles.groupTitle, { color: type.color }]}>Ejercicios de {type.label.toLowerCase()}</Text>
                   <Text style={styles.groupMeta}>
                     {exercises.length} {exercises.length === 1 ? 'ejercicio' : 'ejercicios'}
                     {selectedCount > 0 ? ` · ${selectedCount} seleccionados` : ''}

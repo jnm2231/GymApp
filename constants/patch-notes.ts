@@ -97,7 +97,7 @@ export const PATCH_NOTES: VersionNotes[] = [
       {
         title: 'Entrenar como acción principal',
         detail:
-          'El acceso a Entrenar ocupa el centro de la barra inferior, se distingue con un botón circular elevado y es la pantalla inicial de la aplicación.',
+          'El acceso a Entrenar ocupa el centro de la barra inferior y es la pantalla inicial. Al seleccionarlo invierte sus colores y muestra un halo de luz suave.',
       },
       {
         title: 'Ajustes simplificados',
@@ -140,6 +140,11 @@ export const PATCH_NOTES: VersionNotes[] = [
         title: 'Barra inferior estable',
         detail:
           'Se fijan las cinco posiciones de navegación para mantener Histórico visible y Entrenar siempre en el centro, sin el borde blanco al seleccionarlo.',
+      },
+      {
+        title: 'Calistenia correctamente diferenciada',
+        detail:
+          'El formulario utiliza «Día de Calistenia» para las plantillas y reserva «Corporal» exclusivamente para el tipo de ejercicio. Al editar un día se puede cambiar su tipo sin perder ejercicios.',
       },
       {
         title: 'El interruptor de cronómetros conserva su estado',

@@ -71,7 +71,8 @@ publicar una versión.
   Cada día activo permite abrir directamente el detalle de esa jornada.
 - **Entrenar como acción principal.** Entrenar pasa al centro de la barra de
   navegación inferior, se presenta como un botón circular elevado y es la
-  pantalla seleccionada al abrir la aplicación.
+  pantalla seleccionada al abrir la aplicación. Su estado activo invierte los
+  colores y añade un halo blanco muy suave detrás del botón.
 - **Ajustes simplificados.** Diseño más compacto y profesional, explicaciones
   bajo botones de información y una sección única de Notificaciones con los
   avisos de peso y los cronómetros de entrenamiento.
@@ -98,6 +99,9 @@ publicar una versión.
 - **Barra inferior estable.** Las cinco posiciones quedan fijadas para conservar
   Histórico visible y Entrenar en el centro. También se elimina el borde blanco
   del botón central seleccionado.
+- **Calistenia correctamente diferenciada.** En crear y editar plantillas se
+  muestra «Día de Calistenia», mientras que «Corporal» queda reservado para los
+  ejercicios. El tipo del día se puede cambiar al editar sin perder la selección.
 - **Interruptor de cronómetros persistente.** La preferencia permanece activada
   aunque el entorno actual no incluya el módulo nativo de notificaciones y se
   aplica al ejecutar una build instalada.
