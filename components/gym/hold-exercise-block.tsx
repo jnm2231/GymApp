@@ -178,9 +178,13 @@ export function HoldExerciseBlock({
               ) : (
                 <Text style={styles.duration}>{formatClock(set.duration_seconds ?? 0)}</Text>
               )}
-              <Text style={styles.rest}>
-                {set.rest_seconds == null ? 'inicio' : `descanso ${formatRest(set.rest_seconds)}`}
-              </Text>
+              {set.rest_seconds == null ? (
+                <Text style={styles.restEmpty}>inicio</Text>
+              ) : (
+                <View style={styles.restPill}>
+                  <Text style={styles.restPillText}>{formatRest(set.rest_seconds)}</Text>
+                </View>
+              )}
             </View>
           ))}
 
@@ -205,12 +209,13 @@ export function HoldExerciseBlock({
           ) : null}
 
           {isCurrent && !done && block.sets.length > 0 && !running ? (
-            <Text style={styles.restLive}>
-              Descanso actual ·{' '}
-              {formatClock(
-                Math.floor((now - block.sets[block.sets.length - 1].ts) / 1000)
-              )}
-            </Text>
+            <View style={styles.restClock}>
+              <MaterialCommunityIcons name="timer-sand-complete" size={15} color={GymTheme.hold} />
+              <Text style={styles.restClockText}>
+                {formatClock(Math.floor((now - block.sets[block.sets.length - 1].ts) / 1000))}
+              </Text>
+              <Text style={styles.restClockLabel}>de descanso</Text>
+            </View>
           ) : null}
         </View>
       )}
@@ -282,7 +287,10 @@ const styles = StyleSheet.create({
   nextSet: { borderTopWidth: 1, borderTopColor: GymTheme.border, paddingTop: Spacing.md },
   setIndex: { color: GymTheme.textMuted, fontSize: 13, fontWeight: '700', width: 58 },
   duration: { color: GymTheme.hold, fontSize: 17, fontWeight: '900', width: 64 },
-  rest: { color: GymTheme.textFaint, fontSize: 11, flex: 1, textAlign: 'right' },
+  restEmpty: { color: GymTheme.textFaint, fontSize: 11, flex: 1, textAlign: 'right' },
+  restPill: { marginLeft: 'auto', backgroundColor: GymTheme.holdDim, borderRadius: Radius.pill,
+    paddingHorizontal: 9, paddingVertical: 4 },
+  restPillText: { color: GymTheme.hold, fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums'] },
   liveClock: {
     color: GymTheme.hold,
     fontSize: 25,
@@ -310,7 +318,12 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
   },
   stopText: { color: GymTheme.white, fontSize: 13, fontWeight: '800' },
-  restLive: { color: GymTheme.textMuted, fontSize: 12, textAlign: 'center' },
+  restClock: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6,
+    backgroundColor: GymTheme.holdDim, borderRadius: Radius.pill, paddingHorizontal: 12,
+    paddingVertical: 5, marginTop: Spacing.xs },
+  restClockText: { color: GymTheme.hold, fontSize: 16, fontWeight: '800',
+    fontVariant: ['tabular-nums'], letterSpacing: 0.5 },
+  restClockLabel: { color: GymTheme.textMuted, fontSize: 12, fontWeight: '600' },
   summary: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   summaryText: { color: GymTheme.text, fontSize: 17, fontWeight: '800' },
   actions: {

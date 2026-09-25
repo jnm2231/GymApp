@@ -151,6 +151,11 @@ export const PATCH_NOTES: VersionNotes[] = [
         detail:
           'La preferencia ya no se desactiva automáticamente en entornos sin el módulo nativo y queda preparada para funcionar en la aplicación instalada.',
       },
+      {
+        title: 'Colores coherentes durante el entrenamiento',
+        detail:
+          'El ejercicio activo y sus cápsulas de descanso usan ahora el color de su tipo. Aguante adopta el mismo formato compacto de descansos que Musculación y Corporal.',
+      },
     ],
   },
   {

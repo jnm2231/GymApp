@@ -105,6 +105,10 @@ publicar una versión.
 - **Interruptor de cronómetros persistente.** La preferencia permanece activada
   aunque el entorno actual no incluya el módulo nativo de notificaciones y se
   aplica al ejecutar una build instalada.
+- **Colores coherentes durante el entrenamiento.** El borde del ejercicio activo
+  y las cápsulas de descanso adoptan el color de su tipo: naranja para
+  Musculación, verde para Corporal, azul para Cardio y violeta para Aguante. Los
+  descansos de Aguante usan el mismo formato compacto que el resto de series.
 
 ---
 

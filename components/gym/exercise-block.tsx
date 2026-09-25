@@ -15,6 +15,7 @@ import {
 } from '@/db/sessions';
 import type { SessionExerciseWithSets } from '@/db/types';
 import { formatClock, formatHM, formatRest, repsSummary } from '@/lib/format';
+import { getTrainingType } from '@/lib/training-types';
 import {
   cancelTimerNotification,
   scheduleWorkoutReminder,
@@ -101,7 +102,7 @@ function WeightCell({
 }
 
 /** Cronómetro en vivo del descanso: cuenta desde la última serie confirmada. */
-function RestClock({ sinceTs }: { sinceTs: number }) {
+function RestClock({ sinceTs, color, dimColor }: { sinceTs: number; color: string; dimColor: string }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -109,9 +110,9 @@ function RestClock({ sinceTs }: { sinceTs: number }) {
   }, []);
   const elapsed = Math.floor((now - sinceTs) / 1000);
   return (
-    <View style={styles.restClock}>
-      <MaterialCommunityIcons name="timer-sand-complete" size={15} color={GymTheme.primary} />
-      <Text style={styles.restClockText}>{formatClock(elapsed)}</Text>
+    <View style={[styles.restClock, { backgroundColor: dimColor }]}>
+      <MaterialCommunityIcons name="timer-sand-complete" size={15} color={color} />
+      <Text style={[styles.restClockText, { color }]}>{formatClock(elapsed)}</Text>
       <Text style={styles.restClockLabel}>de descanso</Text>
     </View>
   );
@@ -132,6 +133,7 @@ export function ExerciseBlock({
   const db = useSQLiteContext();
   const done = block.status === 'done';
   const weightConfirmed = block.weight != null;
+  const exerciseType = getTrainingType(block.exercise_type);
 
   const [weightInput, setWeightInput] = useState(block.weight != null ? String(block.weight) : '');
   const [weightEditing, setWeightEditing] = useState(block.weight == null);
@@ -248,7 +250,7 @@ export function ExerciseBlock({
             {ref ? <Text style={styles.refText}>Último: {formatRefSummary(ref)}</Text> : null}
           </View>
           {canFocus ? (
-            <Pressable style={styles.playBtn} onPress={onFocus} hitSlop={6}>
+            <Pressable style={[styles.playBtn, { backgroundColor: exerciseType.color }]} onPress={onFocus} hitSlop={6}>
               <MaterialCommunityIcons name="play" size={16} color="#06210F" />
               <Text style={styles.playText}>{startedSummary ? 'Seguir' : 'Empezar'}</Text>
             </Pressable>
@@ -263,7 +265,7 @@ export function ExerciseBlock({
     );
   }
 
-  const borderColor = isCurrent && !done ? GymTheme.active : GymTheme.border;
+  const borderColor = isCurrent && !done ? exerciseType.color : GymTheme.border;
 
   return (
     <View style={[styles.card, { borderColor, borderWidth: isCurrent && !done ? 2 : 1 }]}>
@@ -326,7 +328,7 @@ export function ExerciseBlock({
         done && !editing ? (
           // Colapsado: una sola línea limpia
           <View style={styles.collapsed}>
-            <MaterialCommunityIcons name="check-circle" size={18} color={GymTheme.active} />
+            <MaterialCommunityIcons name="check-circle" size={18} color={exerciseType.color} />
             <Text style={styles.collapsedReps}>{repsSummary(block.sets.map((s) => s.reps))}</Text>
           </View>
         ) : (
@@ -351,15 +353,20 @@ export function ExerciseBlock({
                   editable={interactive}
                   onSave={(w) => saveSetWeight(s.id, w)}
                 />
-                <Text style={styles.setRest}>
-                  {s.rest_seconds == null ? '—' : formatRest(s.rest_seconds)}
-                </Text>
+                {s.rest_seconds == null ? (
+                  <Text style={styles.setRestEmpty}>—</Text>
+                ) : (
+                  <View style={[styles.setRestPill, { backgroundColor: exerciseType.dimColor }]}>
+                    <Text style={[styles.setRestText, { color: exerciseType.color }]}>{formatRest(s.rest_seconds)}</Text>
+                  </View>
+                )}
               </View>
             ))}
 
             {/* Cronómetro de descanso en vivo desde la última serie */}
             {isCurrent && !done && block.sets.length > 0 ? (
-              <RestClock sinceTs={block.sets[block.sets.length - 1].ts} />
+              <RestClock sinceTs={block.sets[block.sets.length - 1].ts}
+                color={exerciseType.color} dimColor={exerciseType.dimColor} />
             ) : null}
 
             {/* Nueva fila de serie (sólo bloque actual no terminado) */}
@@ -536,7 +543,9 @@ const styles = StyleSheet.create({
   },
   setIndex: { color: GymTheme.textMuted, fontSize: 14, width: 52, fontWeight: '600' },
   setReps: { color: GymTheme.text, fontSize: 15, fontWeight: '700', width: 56 },
-  setRest: { color: GymTheme.textFaint, fontSize: 12, flex: 1, textAlign: 'right' },
+  setRestEmpty: { color: GymTheme.textFaint, fontSize: 12, flex: 1, textAlign: 'right' },
+  setRestPill: { marginLeft: 'auto', borderRadius: Radius.pill, paddingHorizontal: 9, paddingVertical: 4 },
+  setRestText: { fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums'] },
   setWeightText: { color: GymTheme.text, fontSize: 14, fontWeight: '700' },
   setWeightRead: {
     flexDirection: 'row',
@@ -606,14 +615,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: 6,
-    backgroundColor: GymTheme.primaryDim,
     borderRadius: Radius.pill,
     paddingHorizontal: 12,
     paddingVertical: 5,
     marginTop: Spacing.xs,
   },
   restClockText: {
-    color: GymTheme.primary,
     fontSize: 16,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
