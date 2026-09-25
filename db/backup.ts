@@ -87,5 +87,13 @@ export async function restoreBackup(db: SQLiteDatabase, data: unknown): Promise<
     await db.runAsync(
       "UPDATE session_exercises SET exercise_type = 'calisthenics' WHERE es_corporal = 1"
     );
+    // Normaliza también copias v5: los antiguos ejercicios corporales con
+    // cronómetro pasan al tipo independiente Aguante.
+    await db.runAsync(
+      "UPDATE exercises SET exercise_type = 'hold', es_corporal = 0 WHERE tracking_mode = 'hold'"
+    );
+    await db.runAsync(
+      "UPDATE session_exercises SET exercise_type = 'hold', es_corporal = 0 WHERE tracking_mode = 'hold'"
+    );
   });
 }

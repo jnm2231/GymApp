@@ -55,19 +55,19 @@ export const PATCH_NOTES: VersionNotes[] = [
           'Ajustes permite registrar peso con histórico, altura y fecha de nacimiento, calculando la edad automáticamente. También se puede activar un recordatorio semanal para volver a registrar el peso.',
       },
       {
-        title: 'Días de musculación, cardio y corporal',
+        title: 'Días de musculación, cardio, corporal y aguante',
         detail:
-          'Los días se clasifican y distinguen por color: musculación en naranja, cardio en azul y corporal en verde. Los ejercicios de cardio permiten configurar y registrar tiempo, distancia o ambos, además de notas.',
+          'Los días se clasifican y distinguen por color: musculación en naranja, cardio en azul, corporal en verde y aguante en violeta. Los ejercicios de cardio permiten configurar y registrar tiempo, distancia o ambos, además de notas.',
       },
       {
         title: 'Días con ejercicios de cualquier tipo',
         detail:
-          'Cada día puede mezclar ejercicios de musculación, cardio y corporal. Se muestran en desplegables por color, con el tipo principal primero y abierto.',
+          'Cada día puede mezclar ejercicios de musculación, cardio, corporal y aguante. Se muestran en desplegables por color, con el tipo principal primero y abierto.',
       },
       {
         title: 'Series de aguante cronometradas',
         detail:
-          'Los ejercicios corporales pueden configurarse por repeticiones o aguante. Cada serie de aguante tiene controles para empezar y terminar, registra su duración y calcula el descanso entre series.',
+          'Aguante es un cuarto tipo independiente, identificado en violeta. Cada serie tiene controles para empezar y terminar, registra su duración y calcula el descanso entre series.',
       },
       {
         title: 'Crear ejercicios al preparar un día',

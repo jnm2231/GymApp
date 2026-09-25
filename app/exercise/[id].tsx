@@ -47,7 +47,7 @@ export default function ExerciseDetailScreen() {
     label: shortDate(h.session_start_ts),
   }));
   const isCardio = history[0]?.exercise_type === 'cardio';
-  const isHold = history[0]?.tracking_mode === 'hold';
+  const isHold = history[0]?.exercise_type === 'hold';
 
   // Registros más recientes primero.
   const records = [...history].reverse();
@@ -102,7 +102,7 @@ function RecordCard({ entry, name }: { entry: ExerciseHistoryEntry; name: string
       </View>
     );
   }
-  if (entry.tracking_mode === 'hold') {
+  if (entry.exercise_type === 'hold') {
     return (
       <View style={styles.record}>
         <View style={styles.recordHeader}>
@@ -115,7 +115,7 @@ function RecordCard({ entry, name }: { entry: ExerciseHistoryEntry; name: string
         <View style={styles.repsList}>
           {entry.sets.map((set) => (
             <View key={set.id} style={styles.repPill}>
-              <Text style={[styles.repValue, { color: GymTheme.active }]}>
+              <Text style={[styles.repValue, { color: GymTheme.hold }]}>
                 {formatClock(set.duration_seconds ?? 0)}
               </Text>
               <Text style={styles.repRest}>

@@ -1,6 +1,6 @@
 // Tipos del dominio, espejo del esquema SQLite (ver db/schema.ts).
 
-export type TrainingType = 'strength' | 'cardio' | 'calisthenics';
+export type TrainingType = 'strength' | 'cardio' | 'calisthenics' | 'hold';
 export type CardioTracking = 'duration' | 'distance' | 'both';
 export type ExerciseTracking = 'reps' | 'hold';
 

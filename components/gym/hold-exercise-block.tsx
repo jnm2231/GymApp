@@ -104,14 +104,14 @@ export function HoldExerciseBlock({
     return (
       <View style={[styles.card, !canFocus && styles.waiting]}>
         <View style={styles.header}>
-          <MaterialCommunityIcons name="timer-outline" size={22} color={GymTheme.active} />
+          <MaterialCommunityIcons name="timer-outline" size={22} color={GymTheme.hold} />
           <View style={{ flex: 1 }}>
             <Text style={styles.name}>{block.exercise_name}</Text>
             <Text style={styles.sub}>{summary || 'Aguante · Sin empezar'}</Text>
           </View>
           {canFocus ? (
             <Pressable style={styles.primaryButton} onPress={onFocus}>
-              <MaterialCommunityIcons name="play" size={16} color="#06210F" />
+              <MaterialCommunityIcons name="play" size={16} color="#160B24" />
               <Text style={styles.primaryText}>{block.sets.length > 0 ? 'Seguir' : 'Empezar'}</Text>
             </Pressable>
           ) : null}
@@ -123,7 +123,7 @@ export function HoldExerciseBlock({
   return (
     <View style={[styles.card, isCurrent && !done && styles.current]}>
       <View style={styles.header}>
-        <MaterialCommunityIcons name="timer-outline" size={23} color={GymTheme.active} />
+        <MaterialCommunityIcons name="timer-outline" size={23} color={GymTheme.hold} />
         <View style={{ flex: 1 }}>
           <Text style={styles.name}>{block.exercise_name}</Text>
           <Text style={styles.sub}>
@@ -135,7 +135,7 @@ export function HoldExerciseBlock({
 
       {done && !editing ? (
         <View style={styles.summary}>
-          <MaterialCommunityIcons name="check-circle" size={18} color={GymTheme.active} />
+          <MaterialCommunityIcons name="check-circle" size={18} color={GymTheme.hold} />
           <Text style={styles.summaryText}>{summary}</Text>
         </View>
       ) : (
@@ -177,7 +177,7 @@ export function HoldExerciseBlock({
                 </>
               ) : (
                 <Pressable style={styles.primaryButton} onPress={startSet}>
-                  <MaterialCommunityIcons name="play" size={16} color="#06210F" />
+                  <MaterialCommunityIcons name="play" size={16} color="#160B24" />
                   <Text style={styles.primaryText}>Empezar</Text>
                 </Pressable>
               )}
@@ -208,13 +208,13 @@ export function HoldExerciseBlock({
               <MaterialCommunityIcons
                 name={editing ? 'check' : 'pencil'}
                 size={16}
-                color={GymTheme.active}
+                color={GymTheme.hold}
               />
               <Text style={styles.editText}>{editing ? 'Listo' : 'Editar'}</Text>
             </Pressable>
             {editing ? (
               <Pressable style={styles.primaryButton} onPress={continueExercise}>
-                <MaterialCommunityIcons name="play" size={16} color="#06210F" />
+                <MaterialCommunityIcons name="play" size={16} color="#160B24" />
                 <Text style={styles.primaryText}>Seguir ejercicio</Text>
               </Pressable>
             ) : null}
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     gap: Spacing.md,
   },
-  current: { borderColor: GymTheme.active, borderWidth: 2 },
+  current: { borderColor: GymTheme.hold, borderWidth: 2 },
   waiting: { opacity: 0.5 },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   name: { color: GymTheme.text, fontSize: 18, fontWeight: '800' },
@@ -261,10 +261,10 @@ const styles = StyleSheet.create({
   setRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   nextSet: { borderTopWidth: 1, borderTopColor: GymTheme.border, paddingTop: Spacing.md },
   setIndex: { color: GymTheme.textMuted, fontSize: 13, fontWeight: '700', width: 58 },
-  duration: { color: GymTheme.active, fontSize: 17, fontWeight: '900', width: 64 },
+  duration: { color: GymTheme.hold, fontSize: 17, fontWeight: '900', width: 64 },
   rest: { color: GymTheme.textFaint, fontSize: 11, flex: 1, textAlign: 'right' },
   liveClock: {
-    color: GymTheme.active,
+    color: GymTheme.hold,
     fontSize: 25,
     fontWeight: '900',
     fontVariant: ['tabular-nums'],
@@ -274,12 +274,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: GymTheme.active,
+    backgroundColor: GymTheme.hold,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: 9,
   },
-  primaryText: { color: '#06210F', fontSize: 13, fontWeight: '800' },
+  primaryText: { color: '#160B24', fontSize: 13, fontWeight: '800' },
   stopButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -310,14 +310,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   editButton: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 7 },
-  editText: { color: GymTheme.active, fontSize: 13, fontWeight: '700' },
+  editText: { color: GymTheme.hold, fontSize: 13, fontWeight: '700' },
   secondaryButton: { backgroundColor: GymTheme.surfaceElevated, borderRadius: Radius.md, padding: 10 },
   secondaryText: { color: GymTheme.text, fontWeight: '700', fontSize: 13 },
   finishButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: GymTheme.active,
+    backgroundColor: GymTheme.hold,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.lg,
     paddingVertical: 10,
@@ -327,7 +327,7 @@ const styles = StyleSheet.create({
   durationInput: {
     backgroundColor: GymTheme.inputBg,
     borderWidth: 1,
-    borderColor: GymTheme.active,
+    borderColor: GymTheme.hold,
     borderRadius: Radius.sm,
     color: GymTheme.text,
     paddingHorizontal: 8,

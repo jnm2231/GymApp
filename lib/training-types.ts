@@ -6,7 +6,7 @@ export const TRAINING_TYPES: {
   label: string;
   color: string;
   dimColor: string;
-  icon: 'dumbbell' | 'run-fast' | 'human-handsup';
+  icon: 'dumbbell' | 'run-fast' | 'human-handsup' | 'timer-outline';
 }[] = [
   {
     value: 'strength',
@@ -28,6 +28,13 @@ export const TRAINING_TYPES: {
     color: GymTheme.active,
     dimColor: GymTheme.activeDim,
     icon: 'human-handsup',
+  },
+  {
+    value: 'hold',
+    label: 'Aguante',
+    color: GymTheme.hold,
+    dimColor: GymTheme.holdDim,
+    icon: 'timer-outline',
   },
 ];
 

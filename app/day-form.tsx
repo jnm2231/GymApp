@@ -18,7 +18,7 @@ import { Button, EmptyState } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { createDay, getDay, getDayExercises, updateDay } from '@/db/days';
 import { createExercise, listExercises } from '@/db/exercises';
-import type { CardioTracking, Exercise, ExerciseTracking, TrainingType } from '@/db/types';
+import type { CardioTracking, Exercise, TrainingType } from '@/db/types';
 import { getTrainingType, TRAINING_TYPES } from '@/lib/training-types';
 
 export default function DayFormScreen() {
@@ -36,7 +36,6 @@ export default function DayFormScreen() {
   const [newExerciseType, setNewExerciseType] = useState<TrainingType | null>(null);
   const [newExerciseName, setNewExerciseName] = useState('');
   const [newCardioTracking, setNewCardioTracking] = useState<CardioTracking>('both');
-  const [newTrackingMode, setNewTrackingMode] = useState<ExerciseTracking>('reps');
   const orderedTypes = [
     getTrainingType(trainingType),
     ...TRAINING_TYPES.filter((type) => type.value !== trainingType),
@@ -69,18 +68,11 @@ export default function DayFormScreen() {
       return;
     }
     try {
-      const exerciseId = await createExercise(
-        db,
-        trimmed,
-        newExerciseType,
-        newCardioTracking,
-        newTrackingMode
-      );
+      const exerciseId = await createExercise(db, trimmed, newExerciseType, newCardioTracking);
       setCatalog(await listExercises(db));
       setSelected((prev) => [...prev, exerciseId]);
       setNewExerciseName('');
       setNewCardioTracking('both');
-      setNewTrackingMode('reps');
       setNewExerciseType(null);
     } catch {
       showAlert('Ya existe', `El ejercicio "${trimmed}" ya está en el catálogo.`);
@@ -137,7 +129,6 @@ export default function DayFormScreen() {
                 setNewExerciseType(null);
                 setNewExerciseName('');
                 setNewCardioTracking('both');
-                setNewTrackingMode('reps');
               }}>
               <MaterialCommunityIcons name={type.icon} size={17} color={type.color} />
               <Text style={[styles.typeText, trainingType === type.value && { color: type.color }]}>
@@ -220,7 +211,6 @@ export default function DayFormScreen() {
                             )}
                           </View>
                           <Text style={styles.exName}>{exercise.name}</Text>
-                          {exercise.tracking_mode === 'hold' ? <Text style={styles.tag}>aguante</Text> : null}
                         </Pressable>
                       );
                     })
@@ -232,7 +222,6 @@ export default function DayFormScreen() {
                       setNewExerciseType(creatingHere ? null : type.value);
                       setNewExerciseName('');
                       setNewCardioTracking('both');
-                      setNewTrackingMode('reps');
                     }}>
                     <MaterialCommunityIcons
                       name={creatingHere ? 'chevron-up' : 'plus-circle-outline'}
@@ -278,32 +267,6 @@ export default function DayFormScreen() {
                                 style={[
                                   styles.metricText,
                                   newCardioTracking === value && { color: type.color },
-                                ]}>
-                                {label}
-                              </Text>
-                            </Pressable>
-                          ))}
-                        </View>
-                      ) : type.value === 'calisthenics' ? (
-                        <View style={styles.metricRow}>
-                          {([
-                            ['reps', 'Repeticiones'],
-                            ['hold', 'Aguante'],
-                          ] as const).map(([value, label]) => (
-                            <Pressable
-                              key={value}
-                              style={[
-                                styles.metricChip,
-                                newTrackingMode === value && {
-                                  borderColor: type.color,
-                                  backgroundColor: type.dimColor,
-                                },
-                              ]}
-                              onPress={() => setNewTrackingMode(value)}>
-                              <Text
-                                style={[
-                                  styles.metricText,
-                                  newTrackingMode === value && { color: type.color },
                                 ]}>
                                 {label}
                               </Text>
@@ -398,15 +361,6 @@ const styles = StyleSheet.create({
   },
   orderNum: { color: '#0C0C0E', fontWeight: '800', fontSize: 14 },
   exName: { color: GymTheme.text, fontSize: 15, flex: 1, fontWeight: '500' },
-  tag: {
-    color: GymTheme.active,
-    fontSize: 11,
-    fontWeight: '700',
-    backgroundColor: GymTheme.activeDim,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: Radius.sm,
-  },
   createToggle: {
     flexDirection: 'row',
     alignItems: 'center',

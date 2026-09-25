@@ -43,7 +43,7 @@ export async function getPerformedExerciseSummaries(
             MAX(se.exercise_type) AS exerciseType,
             MAX(se.tracking_mode) AS trackingMode,
             COUNT(DISTINCT se.id) AS timesPerformed,
-            MAX(CASE WHEN se.tracking_mode = 'reps' AND se.exercise_type != 'cardio' THEN COALESCE((
+            MAX(CASE WHEN se.exercise_type NOT IN ('cardio', 'hold') THEN COALESCE((
               SELECT MAX(
                 (CASE WHEN se.es_corporal = 1
                       THEN COALESCE(s.user_weight, 0) + COALESCE(st.weight, se.weight, 0)
@@ -135,7 +135,7 @@ export async function getLastExerciseSummary(
       WHERE se.exercise_id = ?
         AND s.status = 'finished'
         AND (? IS NULL OR se.session_id != ?)
-        AND se.tracking_mode = 'reps'
+        AND se.exercise_type NOT IN ('cardio', 'hold')
         AND EXISTS (SELECT 1 FROM sets st WHERE st.session_exercise_id = se.id)
       ORDER BY s.start_ts DESC
       LIMIT 1`,

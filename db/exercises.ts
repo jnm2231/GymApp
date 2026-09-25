@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { CardioTracking, Exercise, ExerciseTracking, TrainingType } from './types';
+import type { CardioTracking, Exercise, TrainingType } from './types';
 
 /** Catálogo global de ejercicios, ordenado alfabéticamente. */
 export async function listExercises(db: SQLiteDatabase): Promise<Exercise[]> {
@@ -10,8 +10,7 @@ export async function createExercise(
   db: SQLiteDatabase,
   name: string,
   exerciseType: TrainingType = 'strength',
-  cardioTracking: CardioTracking = 'both',
-  trackingMode: ExerciseTracking = 'reps'
+  cardioTracking: CardioTracking = 'both'
 ): Promise<number> {
   const res = await db.runAsync(
     `INSERT INTO exercises
@@ -22,7 +21,7 @@ export async function createExercise(
       exerciseType === 'calisthenics' ? 1 : 0,
       exerciseType,
       cardioTracking,
-      exerciseType === 'calisthenics' ? trackingMode : 'reps',
+      exerciseType === 'hold' ? 'hold' : 'reps',
       Date.now(),
     ]
   );
@@ -34,8 +33,7 @@ export async function updateExercise(
   id: number,
   name: string,
   exerciseType: TrainingType = 'strength',
-  cardioTracking: CardioTracking = 'both',
-  trackingMode: ExerciseTracking = 'reps'
+  cardioTracking: CardioTracking = 'both'
 ): Promise<void> {
   await db.runAsync(
     `UPDATE exercises
@@ -46,7 +44,7 @@ export async function updateExercise(
     exerciseType === 'calisthenics' ? 1 : 0,
     exerciseType,
     cardioTracking,
-    exerciseType === 'calisthenics' ? trackingMode : 'reps',
+    exerciseType === 'hold' ? 'hold' : 'reps',
     id,
     ]
   );

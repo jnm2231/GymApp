@@ -24,6 +24,8 @@ export const GymTheme = {
   activeDim: '#16361F',
   cardio: '#3B82F6',
   cardioDim: '#172C4D',
+  hold: '#B58CFF',
+  holdDim: '#2D2340',
   danger: '#E5484D',
   warning: '#F5A623',
 

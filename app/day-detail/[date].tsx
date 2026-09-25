@@ -97,10 +97,11 @@ export default function DayDetailScreen() {
 
           {selected.exercises.map((ex) => {
             const variableWeight = ex.sets.some((s) => s.weight != null && s.weight !== ex.weight);
+            const exerciseType = getTrainingType(ex.exercise_type);
             return (
             <Pressable
               key={ex.session_exercise_id}
-              style={styles.exCard}
+              style={[styles.exCard, { borderColor: exerciseType.color }]}
               disabled={ex.exercise_id == null}
               onPress={() =>
                 ex.exercise_id != null &&
@@ -108,10 +109,10 @@ export default function DayDetailScreen() {
               }>
               <View style={styles.exHeader}>
                 <Text style={styles.exName}>{ex.exercise_name}</Text>
-                <Text style={[styles.exWeight, ex.exercise_type === 'cardio' && { color: GymTheme.cardio }]}>
+                <Text style={[styles.exWeight, { color: exerciseType.color }]}>
                   {ex.exercise_type === 'cardio'
                     ? formatCardioSummary(ex.cardio_entry?.duration_seconds, ex.cardio_entry?.distance_km)
-                    : ex.tracking_mode === 'hold'
+                    : ex.exercise_type === 'hold'
                       ? `${ex.sets.length} ${ex.sets.length === 1 ? 'serie' : 'series'}`
                     : variableWeight
                       ? 'pesos variables'
@@ -126,9 +127,9 @@ export default function DayDetailScreen() {
                   {ex.sets.map((s) => (
                     <View key={s.id} style={styles.repPill}>
                       <Text style={styles.repValue}>
-                        {ex.tracking_mode === 'hold' ? formatClock(s.duration_seconds ?? 0) : s.reps}
+                        {ex.exercise_type === 'hold' ? formatClock(s.duration_seconds ?? 0) : s.reps}
                       </Text>
-                      {ex.tracking_mode !== 'hold' && variableWeight ? (
+                      {ex.exercise_type !== 'hold' && variableWeight ? (
                         <Text style={styles.repWeight}>{s.weight ?? ex.weight ?? 0} kg</Text>
                       ) : null}
                       <Text style={styles.repRest}>

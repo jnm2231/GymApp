@@ -120,7 +120,7 @@ export default function HistoricoScreen() {
                     {exercise.timesPerformed} {exercise.timesPerformed === 1 ? 'vez' : 'veces'} ·{' '}
                     {exercise.exerciseType === 'cardio'
                       ? 'Cardio'
-                      : exercise.trackingMode === 'hold'
+                      : exercise.exerciseType === 'hold'
                         ? 'Aguante'
                         : `Mejor 1RM ${exercise.bestOneRepMax.toFixed(1)} kg`}
                   </Text>

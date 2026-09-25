@@ -39,7 +39,6 @@ import type {
   BodyMeasurement,
   CardioTracking,
   Exercise,
-  ExerciseTracking,
   TrainingType,
 } from '@/db/types';
 import { exportBackup, importBackup } from '@/lib/backup-io';
@@ -72,7 +71,6 @@ export default function AjustesScreen() {
   const [newName, setNewName] = useState('');
   const [newExerciseType, setNewExerciseType] = useState<TrainingType>('strength');
   const [newCardioTracking, setNewCardioTracking] = useState<CardioTracking>('both');
-  const [newTrackingMode, setNewTrackingMode] = useState<ExerciseTracking>('reps');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -134,15 +132,8 @@ export default function AjustesScreen() {
     const name = newName.trim();
     if (!name) return;
     try {
-      await createExercise(
-        db,
-        name,
-        newExerciseType,
-        newCardioTracking,
-        newTrackingMode
-      );
+      await createExercise(db, name, newExerciseType, newCardioTracking);
       setNewName('');
-      setNewTrackingMode('reps');
       await load();
     } catch {
       showAlert('Ya existe', `El ejercicio "${name}" ya está en el catálogo.`);
@@ -322,7 +313,7 @@ export default function AjustesScreen() {
           <Text style={styles.cardTitle}>Catálogo de ejercicios</Text>
           <Text style={styles.cardSub}>
             Ejercicios disponibles para componer tus días. Los ejercicios de tipo Corporal
-            incluyen automáticamente el peso propio en sus cálculos.
+            incluyen el peso propio; los de Aguante se registran con cronómetro.
           </Text>
 
           {(catalogExpanded ? exercises : exercises.slice(0, CATALOG_PREVIEW)).map((ex) => (
@@ -335,7 +326,6 @@ export default function AjustesScreen() {
               <Text style={[styles.tag, { color: getTrainingType(ex.exercise_type).color }]}>
                 {getTrainingType(ex.exercise_type).label}
               </Text>
-              {ex.tracking_mode === 'hold' ? <Text style={styles.tag}>aguante</Text> : null}
               <Pressable hitSlop={8} onPress={() => handleDeleteExercise(ex)}>
                 <MaterialCommunityIcons name="trash-can-outline" size={20} color={GymTheme.danger} />
               </Pressable>
@@ -378,10 +368,7 @@ export default function AjustesScreen() {
                     backgroundColor: type.dimColor,
                   },
                 ]}
-                onPress={() => {
-                  setNewExerciseType(type.value);
-                  setNewTrackingMode('reps');
-                }}>
+                onPress={() => setNewExerciseType(type.value)}>
                 <Text style={[styles.typeChipText, newExerciseType === type.value && { color: type.color }]}>
                   {type.label}
                 </Text>
@@ -405,37 +392,13 @@ export default function AjustesScreen() {
                 </Pressable>
               ))}
             </View>
-          ) : newExerciseType === 'calisthenics' ? (
-            <View style={styles.typeSelector}>
-              {([
-                ['reps', 'Repeticiones'],
-                ['hold', 'Aguante'],
-              ] as const).map(([value, label]) => (
-                <Pressable
-                  key={value}
-                  style={[
-                    styles.metricChip,
-                    newTrackingMode === value && {
-                      borderColor: GymTheme.active,
-                      backgroundColor: GymTheme.activeDim,
-                    },
-                  ]}
-                  onPress={() => setNewTrackingMode(value)}>
-                  <Text
-                    style={[
-                      styles.typeChipText,
-                      newTrackingMode === value && { color: GymTheme.active },
-                    ]}>
-                    {label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
           ) : null}
           <View style={styles.corporalRow}>
             <Text style={styles.cardSub}>
               {newExerciseType === 'calisthenics'
                 ? 'Los ejercicios corporales incluyen el peso propio.'
+                : newExerciseType === 'hold'
+                  ? 'Los ejercicios de aguante registran cada serie con un cronómetro.'
                 : 'Se añadirá al catálogo global.'}
             </Text>
             <Button title="Añadir" onPress={handleAddExercise} />

@@ -3,7 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 /**
  * Versión del esquema. Se guarda con PRAGMA user_version para futuras migraciones.
  */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 /**
  * Definición de tablas (Paso 1).
@@ -232,6 +232,16 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
     await db.execAsync(
       "UPDATE exercises SET exercise_type = 'calisthenics' WHERE es_corporal = 1;" +
       "UPDATE session_exercises SET exercise_type = 'calisthenics' WHERE es_corporal = 1;"
+    );
+  }
+
+  if (current < 6) {
+    // Aguante deja de ser un modo secundario de los ejercicios corporales y
+    // pasa a ser un cuarto tipo independiente. Se conservan intactas todas las
+    // series, duraciones, descansos y marcas de tiempo ya registradas.
+    await db.execAsync(
+      "UPDATE exercises SET exercise_type = 'hold', es_corporal = 0 WHERE tracking_mode = 'hold';" +
+      "UPDATE session_exercises SET exercise_type = 'hold', es_corporal = 0 WHERE tracking_mode = 'hold';"
     );
   }
 

@@ -29,8 +29,10 @@ entrenamientos. **Todos los datos se guardan únicamente en el dispositivo**
   guarda su hora exacta y el descanso se calcula como la diferencia con la serie
   inmediatamente anterior (la 1.ª no tiene descanso).
 - **Ejercicios corporales.** Los ejercicios de tipo Corporal incluyen el peso
-  propio en el 1RM y pueden configurarse por repeticiones o por aguante
-  cronometrado. El peso del usuario se guarda como _snapshot_ en cada sesión.
+  propio en el 1RM y se registran por repeticiones. El peso del usuario se
+  guarda como _snapshot_ en cada sesión.
+- **Ejercicios de aguante.** Son un tipo independiente, identificado en violeta,
+  y registran la duración de cada serie mediante un cronómetro.
 - **Una sesión a la vez.** Mientras haya un entrenamiento activo o en pausa, la
   pestaña Entreno muestra la sesión (no se puede iniciar otro día).
 
@@ -119,7 +121,7 @@ file-system, document-picker, sharing) están incluidas en Expo Go para SDK 57,
 así que **no necesitas una build nativa para probar**.
 
 > **Primer arranque** (la base de datos empieza vacía):
-> 1. **Ajustes** → escribe tu peso y crea ejercicios de musculación, cardio o corporal.
+> 1. **Ajustes** → escribe tu peso y crea ejercicios de musculación, cardio, corporal o aguante.
 > 2. **Ajustes → Nuevo día** (o el botón *Nuevo día* del Inicio) → nombra el día y selecciona ejercicios.
 > 3. **Entreno** → *Empezar* → confirma el peso, registra series con el tick ✓, *Terminado*, *Fin*.
 > 4. Mira **Histórico** y **Calendario**.

@@ -249,7 +249,7 @@ export function SessionView() {
                 onPostpone={() => setFocusedId(null)}
                 canFocus={focusedId == null}
               />
-            ) : b.tracking_mode === 'hold' ? (
+            ) : b.exercise_type === 'hold' ? (
               <HoldExerciseBlock
                 block={b}
                 isCurrent={b.id === focusedId}
@@ -313,13 +313,7 @@ export function SessionView() {
               {catalog.map((ex) => (
                 <Pressable key={ex.id} style={styles.modalRow} onPress={() => pickAdditional(ex)}>
                   <MaterialCommunityIcons
-                    name={
-                      ex.exercise_type === 'cardio'
-                        ? 'run-fast'
-                        : ex.tracking_mode === 'hold'
-                          ? 'timer-outline'
-                          : getTrainingType(ex.exercise_type).icon
-                    }
+                    name={getTrainingType(ex.exercise_type).icon}
                     size={18}
                     color={getTrainingType(ex.exercise_type).color}
                   />
