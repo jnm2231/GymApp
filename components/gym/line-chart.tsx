@@ -13,7 +13,17 @@ export interface ChartPoint {
  * - Eje X equiespaciado (ignora el tiempo real entre sesiones).
  * - Eje Y autoescalado al rango de valores.
  */
-export function LineChart({ points, width }: { points: ChartPoint[]; width: number }) {
+export function LineChart({
+  points,
+  width,
+  color = GymTheme.primary,
+  valueFormatter = (value) => String(Math.round(value)),
+}: {
+  points: ChartPoint[];
+  width: number;
+  color?: string;
+  valueFormatter?: (value: number) => string;
+}) {
   const height = 200;
   const padL = 38;
   const padR = 14;
@@ -78,21 +88,21 @@ export function LineChart({ points, width }: { points: ChartPoint[]; width: numb
           fill={GymTheme.textFaint}
           fontSize={10}
           textAnchor="end">
-          {Math.round(g.v)}
+          {valueFormatter(g.v)}
         </SvgText>
       ))}
 
       <Polyline
         points={polyPoints}
         fill="none"
-        stroke={GymTheme.primary}
+        stroke={color}
         strokeWidth={2.5}
         strokeLinejoin="round"
         strokeLinecap="round"
       />
 
       {points.map((p, i) => (
-        <Circle key={`c${i}`} cx={xAt(i)} cy={yAt(p.value)} r={3.5} fill={GymTheme.primary} />
+        <Circle key={`c${i}`} cx={xAt(i)} cy={yAt(p.value)} r={3.5} fill={color} />
       ))}
 
       {points.map((p, i) =>

@@ -79,6 +79,16 @@ export const PATCH_NOTES: VersionNotes[] = [
         detail:
           'La pantalla de creación y edición de días permite añadir un ejercicio nuevo, configurarlo según el tipo de entrenamiento y seleccionarlo al instante, sin pasar por Ajustes.',
       },
+      {
+        title: 'Nueva sección Personal',
+        detail:
+          'La nueva pestaña reúne la evolución completa del peso y un calendario de actividad estilo GitHub que muestra la frecuencia e intensidad de los entrenamientos del último año.',
+      },
+      {
+        title: 'Entrenar como acción principal',
+        detail:
+          'El acceso a Entrenar ocupa ahora el centro de la barra inferior y se distingue con un botón circular elevado.',
+      },
     ],
     fixes: [
       {

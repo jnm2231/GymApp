@@ -20,6 +20,7 @@ entrenamientos. **Todos los datos se guardan únicamente en el dispositivo**
 | **Sesión activa** | Bloques de ejercicio con **peso global por ejercicio**, registro de **series inline** (tick verde) y **cálculo del descanso** respecto a la serie anterior. El ejercicio activo se resalta en verde; puedes **cambiar el orden libremente**, **posponer** un ejercicio empezado y añadir **ejercicios adicionales**. Al terminar un bloque, las series se **colapsan** (`12-12-12-10`). Controles globales **Guardar** (pausar) y **Fin**. |
 | **Calendario** | Vista mensual a pantalla completa con marcadores del tipo de día entrenado, swipe animado entre meses y selector rápido de mes/año. Drill-down: día → tipo de día → ejercicios → histórico. |
 | **Histórico** | Drill-down día → ejercicio → gráfico de **1RM promedio** (eje X equiespaciado) y lista de registros con peso, repeticiones y descansos. |
+| **Personal** | Evolución completa del peso y calendario de actividad estilo GitHub con la frecuencia e intensidad de los entrenamientos del último año. |
 | **Ajustes** | Catálogo de ejercicios por tipo, peso del usuario, **copias de seguridad** (exportar/importar `.json`) y notas de desarrollo. |
 
 ### Reglas de negocio destacadas
@@ -68,6 +69,7 @@ app/                      Rutas (Expo Router)
     index.tsx             Pestaña "Entreno": muestra Inicio o Sesión según haya entrenamiento
     calendario.tsx        Calendario mensual
     historico.tsx         Histórico (drill-down de días)
+    personal.tsx          Peso y calendario anual de actividad
     ajustes.tsx           Ajustes
   day-form.tsx            Crear / editar un día (modal)
   exercise/[id].tsx       Detalle de un ejercicio (gráfico + registros)
@@ -78,13 +80,14 @@ components/gym/           UI de la app
   home-view.tsx           Contenido del Inicio
   session-view.tsx        Contenido de la sesión activa
   exercise-block.tsx      Bloque de ejercicio (series, peso, cronómetro)
+  activity-heatmap.tsx    Calendario de frecuencia estilo GitHub
   line-chart.tsx          Gráfico de líneas (SVG)
   ui.tsx                  Kit base (Screen, Button, Card, EmptyState…)
 
 db/                       Capa de datos (modular)
   schema.ts               DDL de las tablas + init (Paso 1)
   types.ts                Tipos del dominio
-  settings.ts / exercises.ts / days.ts / sessions.ts
+  settings.ts / exercises.ts / days.ts / sessions.ts / personal.ts
   history.ts / calendar.ts / notes.ts / backup.ts
 
 lib/                      Utilidades (cálculos 1RM, formato, E/S de backups)

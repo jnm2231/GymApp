@@ -54,6 +54,12 @@ publicar una versión.
 - **Crear ejercicios al preparar un día.** La creación y edición de días permite
   añadir un ejercicio del tipo correspondiente, configurarlo y seleccionarlo al
   instante sin tener que pasar antes por Ajustes.
+- **Nueva sección Personal.** La nueva pestaña reúne la evolución completa del
+  peso y un calendario de actividad estilo GitHub que representa la frecuencia
+  e intensidad de los entrenamientos del último año. Cada día activo permite
+  abrir directamente el detalle de esa jornada.
+- **Entrenar como acción principal.** Entrenar pasa al centro de la barra de
+  navegación inferior y se presenta como un botón circular elevado y destacado.
 
 ### Solución de errores
 - **Las repeticiones editadas se guardan correctamente.** Al editar las series
