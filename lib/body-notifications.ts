@@ -2,7 +2,6 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 const BODY_REMINDER_TYPE = 'weekly-body-weight-reminder';
-const WEEK_SECONDS = 7 * 24 * 60 * 60;
 type NotificationsModule = typeof import('expo-notifications');
 
 async function loadNotifications(): Promise<NotificationsModule | null> {
@@ -24,7 +23,7 @@ export async function disableWeeklyWeightReminder(): Promise<void> {
   if (Notifications) await cancelExisting(Notifications);
 }
 
-export async function scheduleWeeklyWeightReminder(): Promise<boolean> {
+export async function scheduleWeeklyWeightReminder(day = 1): Promise<boolean> {
   const Notifications = await loadNotifications();
   if (!Notifications) return false;
 
@@ -47,18 +46,22 @@ export async function scheduleWeeklyWeightReminder(): Promise<boolean> {
       ...(Platform.OS === 'android' ? { channelId: 'body-records' } : {}),
     },
     trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-      seconds: WEEK_SECONDS,
-      repeats: true,
+      type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+      weekday: day + 1,
+      hour: 9,
+      minute: 0,
+      ...(Platform.OS === 'android' ? { channelId: 'body-records' } : {}),
     },
   });
   return true;
 }
 
-export async function ensureWeeklyWeightReminder(): Promise<boolean> {
+export async function ensureWeeklyWeightReminder(day = 1): Promise<boolean> {
   const Notifications = await loadNotifications();
   if (!Notifications) return false;
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-  if (scheduled.some((item) => item.content.data?.type === BODY_REMINDER_TYPE)) return true;
-  return scheduleWeeklyWeightReminder();
+  const existing = scheduled.find((item) => item.content.data?.type === BODY_REMINDER_TYPE);
+  const trigger = existing?.trigger as { type?: string; weekday?: number } | undefined;
+  if (trigger?.type === 'weekly' && trigger.weekday === day + 1) return true;
+  return scheduleWeeklyWeightReminder(day);
 }

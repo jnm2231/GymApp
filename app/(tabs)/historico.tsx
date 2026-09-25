@@ -10,7 +10,7 @@ import { getDayExercises, listDaysWithCount } from '@/db/days';
 import { getPerformedExerciseSummaries } from '@/db/history';
 import type { PerformedExerciseSummary } from '@/db/history';
 import type { DayWithCount, Exercise } from '@/db/types';
-import { getTrainingType } from '@/lib/training-types';
+import { getDayType, getTrainingType } from '@/lib/training-types';
 
 type HistorySort = 'name' | 'count' | 'oneRm';
 
@@ -135,7 +135,7 @@ export default function HistoricoScreen() {
 
         {days.length > 0 ? <Text style={[styles.sectionLabel, { marginTop: Spacing.md }]}>Explorar por día</Text> : null}
         {days.map((day) => {
-          const type = getTrainingType(day.training_type);
+          const type = getDayType(day.training_type);
           return (
             <Pressable
               key={day.id}

@@ -23,16 +23,19 @@ publicar una versión.
   ejercicios realizados, excluye los que nunca se han entrenado y permite
   ordenarlos por nombre, número de veces realizado o mejor 1RM. Cada histórico
   individual indica también cuántas veces se realizó el ejercicio.
-- **Registro corporal.** Ajustes permite registrar peso con histórico, altura y
-  fecha de nacimiento, calculando la edad automáticamente. Se puede activar un
-  recordatorio semanal que se reinicia siete días después de cada nuevo peso.
+- **Registro corporal.** Personal permite registrar peso con histórico, altura y
+  fecha de nacimiento, calculando la edad automáticamente. El usuario elige el
+  día semanal de pesaje y activa el aviso desde Notificaciones.
   - *Modelo de datos:* nueva tabla `body_measurements` y esquema v3.
-- **Días de musculación, cardio, corporal y aguante.** Las plantillas y sus
-  sesiones se clasifican por tipo y se distinguen por color: musculación en
-  naranja, cardio en azul, corporal en verde y aguante en violeta. Los
+- **Días de musculación, cardio y calistenia.** Las plantillas y sus sesiones se
+  clasifican por tipo y se distinguen por color: musculación en naranja, cardio
+  en azul y calistenia en verde. Aguante permanece como tipo de ejercicio, pero
+  deja de ser un tipo de día. Los
   ejercicios de Cardio cronometran siempre el tiempo; la distancia es opcional
   y, cuando se indica, la aplicación calcula el ritmo medio. Los resultados y
   notas aparecen en el calendario y el histórico.
+  - *Modelo de datos:* los antiguos días de Aguante se migran a Calistenia en el
+    esquema v8, conservando intactos sus ejercicios y sesiones.
   - *Modelo de datos:* tipos fotografiados en plantillas y sesiones, nueva tabla
     `cardio_entries` y esquema v4.
 - **Días con ejercicios de cualquier tipo.** Una misma plantilla puede mezclar
@@ -55,11 +58,15 @@ publicar una versión.
   añadir un ejercicio del tipo correspondiente, configurarlo y seleccionarlo al
   instante sin tener que pasar antes por Ajustes.
 - **Nueva sección Personal.** La nueva pestaña reúne la evolución completa del
-  peso y un calendario de actividad estilo GitHub que representa la frecuencia
-  e intensidad de los entrenamientos del último año. Cada día activo permite
-  abrir directamente el detalle de esa jornada.
+  peso, el registro corporal y un calendario de actividad estilo GitHub que
+  representa la frecuencia e intensidad de los entrenamientos del último año.
+  Cada día activo permite abrir directamente el detalle de esa jornada.
 - **Entrenar como acción principal.** Entrenar pasa al centro de la barra de
-  navegación inferior y se presenta como un botón circular elevado y destacado.
+  navegación inferior, se presenta como un botón circular elevado y es la
+  pantalla seleccionada al abrir la aplicación.
+- **Ajustes simplificados.** Diseño más compacto y profesional, explicaciones
+  bajo botones de información y una sección única de Notificaciones con los
+  avisos de peso y los cronómetros de entrenamiento.
 
 ### Solución de errores
 - **Las repeticiones editadas se guardan correctamente.** Al editar las series

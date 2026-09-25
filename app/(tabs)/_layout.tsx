@@ -19,6 +19,7 @@ function TrainingAction({ focused }: { focused: boolean }) {
 export default function TabLayout() {
   return (
     <Tabs
+      initialRouteName="index"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: GymTheme.primary,
@@ -27,11 +28,11 @@ export default function TabLayout() {
         tabBarStyle: styles.bar,
       }}>
       <Tabs.Screen
-        name="calendario"
+        name="personal"
         options={{
-          title: 'Calendario',
+          title: 'Personal',
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="calendar-month" size={size} color={color} />
+            <MaterialCommunityIcons name="account-heart" size={size} color={color} />
           ),
         }}
       />
@@ -54,11 +55,11 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="personal"
+        name="calendario"
         options={{
-          title: 'Personal',
+          title: 'Calendario',
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="account-heart" size={size} color={color} />
+            <MaterialCommunityIcons name="calendar-month" size={size} color={color} />
           ),
         }}
       />

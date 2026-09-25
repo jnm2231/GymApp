@@ -3,7 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 /**
  * Versión del esquema. Se guarda con PRAGMA user_version para futuras migraciones.
  */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 /**
  * Definición de tablas (Paso 1).
@@ -255,6 +255,15 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
     );
   }
 
+  if (current < 8) {
+    // Aguante continúa como tipo de ejercicio, pero deja de existir como tipo
+    // de día. Las plantillas y sesiones antiguas se conservan como Calistenia.
+    await db.execAsync(
+      "UPDATE days SET training_type = 'calisthenics' WHERE training_type = 'hold';" +
+      "UPDATE sessions SET day_type = 'calisthenics' WHERE day_type = 'hold';"
+    );
+  }
+
   if (current < SCHEMA_VERSION) await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 
   // Semilla del peso del usuario si no existe.
@@ -263,6 +272,9 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
   );
   await db.runAsync(
     `INSERT OR IGNORE INTO settings (key, value) VALUES ('timer_notifications_enabled', '0')`
+  );
+  await db.runAsync(
+    `INSERT OR IGNORE INTO settings (key, value) VALUES ('weekly_weight_day', '1')`
   );
 }
 

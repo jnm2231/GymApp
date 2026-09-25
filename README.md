@@ -20,12 +20,13 @@ entrenamientos. **Todos los datos se guardan únicamente en el dispositivo**
 | **Sesión activa** | Bloques de ejercicio con **peso global por ejercicio**, registro de **series inline** (tick verde) y **cálculo del descanso** respecto a la serie anterior. El ejercicio activo se resalta en verde; puedes **cambiar el orden libremente**, **posponer** un ejercicio empezado y añadir **ejercicios adicionales**. Al terminar un bloque, las series se **colapsan** (`12-12-12-10`). Controles globales **Guardar** (pausar) y **Fin**. |
 | **Calendario** | Vista mensual a pantalla completa con marcadores del tipo de día entrenado, swipe animado entre meses y selector rápido de mes/año. Drill-down: día → tipo de día → ejercicios → histórico. |
 | **Histórico** | Drill-down día → ejercicio → gráfico de **1RM promedio** (eje X equiespaciado) y lista de registros con peso, repeticiones y descansos. |
-| **Personal** | Evolución completa del peso y calendario de actividad estilo GitHub con la frecuencia e intensidad de los entrenamientos del último año. |
-| **Ajustes** | Catálogo de ejercicios por tipo, peso del usuario, **copias de seguridad** (exportar/importar `.json`) y notas de desarrollo. |
+| **Personal** | Registro corporal, evolución completa del peso, día semanal de pesaje y calendario de actividad estilo GitHub. |
+| **Ajustes** | Notificaciones, catálogo de ejercicios, **copias de seguridad** y notas de desarrollo en un panel compacto. |
 
 ### Reglas de negocio destacadas
 
-- **Peso global, no por serie.** El peso se anota una vez por ejercicio y sesión.
+- **Peso por serie.** Cada serie puede usar su propio peso o heredar el valor
+  general configurado para el ejercicio en esa sesión.
 - **Cronómetro por timestamps.** No hay temporizador en segundo plano: cada serie
   guarda su hora exacta y el descanso se calcula como la diferencia con la serie
   inmediatamente anterior (la 1.ª no tiene descanso).
@@ -129,10 +130,11 @@ build nativa de desarrollo o el APK. El resto de la aplicación puede probarse
 normalmente desde Expo Go.
 
 > **Primer arranque** (la base de datos empieza vacía):
-> 1. **Ajustes** → escribe tu peso y crea ejercicios de musculación, cardio, corporal o aguante.
-> 2. **Ajustes → Nuevo día** (o el botón *Nuevo día* del Inicio) → nombra el día y selecciona ejercicios.
-> 3. **Entreno** → *Empezar* → confirma el peso, registra series con el tick ✓, *Terminado*, *Fin*.
-> 4. Mira **Histórico** y **Calendario**.
+> 1. **Personal** → registra tus datos corporales y elige tu día habitual de pesaje.
+> 2. **Ajustes** → crea ejercicios de musculación, cardio, corporal o aguante.
+> 3. **Ajustes → Nuevo día** (o el botón *Nuevo día* del Inicio) → nombra el día y selecciona ejercicios.
+> 4. **Entreno** → *Empezar* → confirma el peso, registra series con el tick ✓, *Terminado*, *Fin*.
+> 5. Mira **Histórico** y **Calendario**.
 
 Comprobaciones de calidad:
 

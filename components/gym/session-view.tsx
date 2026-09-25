@@ -26,7 +26,7 @@ import type { DayDurationEstimate } from '@/db/sessions';
 import type { Exercise, Session, SessionExerciseWithSets } from '@/db/types';
 import { formatDuration, formatHM } from '@/lib/format';
 import { useKeyboardHeight } from '@/lib/use-keyboard';
-import { getTrainingType } from '@/lib/training-types';
+import { getDayType, getTrainingType } from '@/lib/training-types';
 import {
   cancelTimerNotification,
   cancelWorkoutReminder,
@@ -147,7 +147,7 @@ export function SessionView() {
     ]);
   };
 
-  const sessionType = getTrainingType(session.day_type);
+  const sessionType = getDayType(session.day_type);
 
   // --- Estado pausado: tarjeta compacta para reanudar ---
   if (session.status === 'paused') {

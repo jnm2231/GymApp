@@ -15,7 +15,7 @@ import {
   formatHM,
   formatRest,
 } from '@/lib/format';
-import { getTrainingType } from '@/lib/training-types';
+import { getDayType, getTrainingType } from '@/lib/training-types';
 
 export default function DayDetailScreen() {
   const db = useSQLiteContext();
@@ -167,7 +167,7 @@ export default function DayDetailScreen() {
           <EmptyState title="Sin entrenamientos ese día" />
         ) : (
           blocks.map((b) => {
-            const type = getTrainingType(b.day_type);
+            const type = getDayType(b.day_type);
             return (
             <Pressable key={b.session_id} style={[styles.dayBlock, { borderColor: type.color }]} onPress={() => setSelected(b)}>
               <View style={[styles.dayIcon, { backgroundColor: type.dimColor }]}>

@@ -101,5 +101,11 @@ export async function restoreBackup(db: SQLiteDatabase, data: unknown): Promise<
     await db.runAsync(
       "UPDATE session_exercises SET cardio_tracking = 'both' WHERE exercise_type = 'cardio'"
     );
+    await db.runAsync(
+      "UPDATE days SET training_type = 'calisthenics' WHERE training_type = 'hold'"
+    );
+    await db.runAsync(
+      "UPDATE sessions SET day_type = 'calisthenics' WHERE day_type = 'hold'"
+    );
   });
 }

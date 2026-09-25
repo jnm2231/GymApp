@@ -38,6 +38,17 @@ export const TRAINING_TYPES: {
   },
 ];
 
+/** Tipos disponibles para una plantilla de día. Aguante es solo un tipo de ejercicio. */
+export const DAY_TYPES = TRAINING_TYPES.filter(
+  (type) => type.value !== 'hold'
+).map((type) =>
+  type.value === 'calisthenics' ? { ...type, label: 'Calistenia' } : type
+);
+
 export function getTrainingType(type: TrainingType) {
   return TRAINING_TYPES.find((item) => item.value === type) ?? TRAINING_TYPES[0];
+}
+
+export function getDayType(type: TrainingType) {
+  return DAY_TYPES.find((item) => item.value === type) ?? DAY_TYPES[0];
 }

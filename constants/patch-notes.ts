@@ -52,12 +52,12 @@ export const PATCH_NOTES: VersionNotes[] = [
       {
         title: 'Registro corporal',
         detail:
-          'Ajustes permite registrar peso con histórico, altura y fecha de nacimiento, calculando la edad automáticamente. También se puede activar un recordatorio semanal para volver a registrar el peso.',
+          'Personal permite registrar peso con histórico, altura y fecha de nacimiento, calculando la edad automáticamente. También permite elegir el día semanal de pesaje.',
       },
       {
-        title: 'Días de musculación, cardio, corporal y aguante',
+        title: 'Días de musculación, cardio y calistenia',
         detail:
-          'Los días se clasifican y distinguen por color: musculación en naranja, cardio en azul, corporal en verde y aguante en violeta. En Cardio, la aplicación cronometra siempre el tiempo; la distancia es opcional y, si se indica, calcula el ritmo medio.',
+          'Los días se clasifican por Musculación, Cardio o Calistenia. Aguante se mantiene como tipo de ejercicio cronometrado, pero no como tipo de día.',
       },
       {
         title: 'Días con ejercicios de cualquier tipo',
@@ -82,12 +82,17 @@ export const PATCH_NOTES: VersionNotes[] = [
       {
         title: 'Nueva sección Personal',
         detail:
-          'La nueva pestaña reúne la evolución completa del peso y un calendario de actividad estilo GitHub que muestra la frecuencia e intensidad de los entrenamientos del último año.',
+          'La nueva pestaña reúne el registro corporal, la evolución completa del peso y un calendario de actividad estilo GitHub que muestra la frecuencia e intensidad del último año.',
       },
       {
         title: 'Entrenar como acción principal',
         detail:
-          'El acceso a Entrenar ocupa ahora el centro de la barra inferior y se distingue con un botón circular elevado.',
+          'El acceso a Entrenar ocupa el centro de la barra inferior, se distingue con un botón circular elevado y es la pantalla inicial de la aplicación.',
+      },
+      {
+        title: 'Ajustes simplificados',
+        detail:
+          'Ajustes adopta un diseño más compacto, agrupa los avisos de peso y cronómetros en Notificaciones y oculta las explicaciones tras botones de información.',
       },
     ],
     fixes: [

@@ -19,7 +19,7 @@ import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { createDay, getDay, getDayExercises, updateDay } from '@/db/days';
 import { createExercise, listExercises } from '@/db/exercises';
 import type { Exercise, TrainingType } from '@/db/types';
-import { getTrainingType, TRAINING_TYPES } from '@/lib/training-types';
+import { DAY_TYPES, getTrainingType, TRAINING_TYPES } from '@/lib/training-types';
 
 export default function DayFormScreen() {
   const db = useSQLiteContext();
@@ -113,7 +113,7 @@ export default function DayFormScreen() {
 
         <Text style={[styles.label, { marginTop: Spacing.md }]}>Tipo de entrenamiento</Text>
         <View style={styles.typeRow}>
-          {TRAINING_TYPES.map((type) => (
+          {DAY_TYPES.map((type) => (
             <Pressable
               key={type.value}
               style={[
