@@ -22,8 +22,10 @@ export default function PersonalScreen() {
   const [weights, setWeights] = useState<BodyMeasurement[]>([]);
   const [activity, setActivity] = useState<TrainingActivityDay[]>([]);
   const [weight, setWeight] = useState('');
+  const [profileWeight, setProfileWeight] = useState(0);
   const [height, setHeight] = useState('');
   const [birthDate, setBirthDate] = useState('');
+  const [weightTrackingEnabled, setWeightTrackingEnabled] = useState(true);
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [weightFormOpen, setWeightFormOpen] = useState(false);
   const [profileEditing, setProfileEditing] = useState(false);
@@ -35,9 +37,11 @@ export default function PersonalScreen() {
     setWeights(nextWeights);
     setActivity(nextActivity);
     setWeight(profile.weight ? String(profile.weight) : '');
+    setProfileWeight(profile.weight);
     setHeight(profile.heightCm == null ? '' : String(profile.heightCm));
     setBirthDate(profile.birthDate ? isoToDisplayDate(profile.birthDate) : '');
-    setReminderEnabled(profile.weeklyWeightReminder);
+    setWeightTrackingEnabled(profile.weeklyWeightTracking);
+    setReminderEnabled(profile.weeklyWeightTracking && profile.weeklyWeightReminder);
   }, [db]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
@@ -71,6 +75,7 @@ export default function PersonalScreen() {
 
   const points = weights.map((entry) => ({ value: entry.weight, label: shortDate(entry.recorded_at) }));
   const latest = weights.at(-1);
+  const displayedWeight = latest?.weight ?? profileWeight;
   const change = latest && weights.length > 1 ? latest.weight - weights[0].weight : null;
   const birthDateIso = displayDateToIso(birthDate);
 
@@ -80,47 +85,65 @@ export default function PersonalScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Card style={styles.card}>
           <View style={styles.cardHeader}>
-            <View style={styles.iconBox}><MaterialCommunityIcons name="chart-line" size={21} color={GymTheme.primary} /></View>
+            <View style={styles.iconBox}><MaterialCommunityIcons
+              name={weightTrackingEnabled ? 'chart-line' : 'account-outline'}
+              size={21} color={GymTheme.primary} /></View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>Evolución del peso</Text>
-              <Text style={styles.summaryText}>
-                {latest ? `${latest.weight} kg${change == null ? '' : ` · ${signed(change)} kg desde el inicio`}` : 'Sin registros todavía'}
+              <Text style={styles.cardTitle}>
+                {weightTrackingEnabled ? 'Evolución del peso' : 'Datos corporales'}
               </Text>
+              {weightTrackingEnabled ? (
+                <Text style={styles.summaryText}>
+                  {latest ? `${latest.weight} kg${change == null ? '' : ` · ${signed(change)} kg desde el inicio`}` : 'Sin registros todavía'}
+                </Text>
+              ) : null}
             </View>
-            <View style={[styles.bell, reminderEnabled && styles.bellActive]}>
-              <MaterialCommunityIcons name={reminderEnabled ? 'bell' : 'bell-outline'} size={20}
-                color={reminderEnabled ? '#160B00' : GymTheme.textFaint} />
-            </View>
+            {weightTrackingEnabled ? (
+              <View style={[styles.bell, reminderEnabled && styles.bellActive]}>
+                <MaterialCommunityIcons name={reminderEnabled ? 'bell' : 'bell-outline'} size={20}
+                  color={reminderEnabled ? '#160B00' : GymTheme.textFaint} />
+              </View>
+            ) : null}
           </View>
 
-          {weights.length > 0 ? (
-            <LineChart points={points} width={Math.max(240, width - Spacing.lg * 4)}
-              color={GymTheme.primary} valueFormatter={(value) => value.toFixed(1)} />
-          ) : <EmptyState title="Sin registros de peso" subtitle="Pulsa Registrar para añadir el primero." />}
+          {weightTrackingEnabled ? (
+            <>
+              {weights.length > 0 ? (
+                <LineChart points={points} width={Math.max(240, width - Spacing.lg * 4)}
+                  color={GymTheme.primary} valueFormatter={(value) => value.toFixed(1)} />
+              ) : <EmptyState title="Sin registros de peso" subtitle="Pulsa Registrar para añadir el primero." />}
 
-          <View style={styles.divider} />
-          <View style={styles.profileHeader}>
-            <View style={styles.profileValues}>
+              <View style={styles.divider} />
+              <View style={styles.profileHeader}>
+                <View style={styles.profileValues}>
+                  <DataValue label="Edad" value={birthDateIso ? `${ageFromIso(birthDateIso)} años` : 'Sin registrar'} />
+                  <DataValue label="Altura" value={height ? `${height} cm` : 'Sin registrar'} />
+                </View>
+                <Pressable style={styles.editButton} onPress={() => setProfileEditing((editing) => !editing)}>
+                  <MaterialCommunityIcons name="pencil-outline" size={17} color={GymTheme.textMuted} />
+                </Pressable>
+              </View>
+
+              <View style={styles.weightRow}>
+                <View>
+                  <Text style={styles.dataLabel}>ÚLTIMO PESO REGISTRADO</Text>
+                  <Text style={styles.weightValue}>{displayedWeight > 0 ? `${displayedWeight} kg` : 'Sin registrar'}</Text>
+                </View>
+                <Pressable style={[styles.registerButton, reminderEnabled && styles.registerButtonActive]}
+                  onPress={() => setWeightFormOpen((open) => !open)}>
+                  <Text style={[styles.registerButtonText, reminderEnabled && styles.registerButtonTextActive]}>Registrar</Text>
+                </Pressable>
+              </View>
+            </>
+          ) : (
+            <View style={styles.bodySummary}>
               <DataValue label="Edad" value={birthDateIso ? `${ageFromIso(birthDateIso)} años` : 'Sin registrar'} />
               <DataValue label="Altura" value={height ? `${height} cm` : 'Sin registrar'} />
+              <DataValue label="Peso" value={displayedWeight > 0 ? `${displayedWeight} kg` : 'Sin registrar'} />
             </View>
-            <Pressable style={styles.editButton} onPress={() => setProfileEditing((editing) => !editing)}>
-              <MaterialCommunityIcons name="pencil-outline" size={17} color={GymTheme.textMuted} />
-            </Pressable>
-          </View>
+          )}
 
-          <View style={styles.weightRow}>
-            <View>
-              <Text style={styles.dataLabel}>ÚLTIMO PESO REGISTRADO</Text>
-              <Text style={styles.weightValue}>{latest ? `${latest.weight} kg` : 'Sin registrar'}</Text>
-            </View>
-            <Pressable style={[styles.registerButton, reminderEnabled && styles.registerButtonActive]}
-              onPress={() => setWeightFormOpen((open) => !open)}>
-              <Text style={[styles.registerButtonText, reminderEnabled && styles.registerButtonTextActive]}>Registrar</Text>
-            </Pressable>
-          </View>
-
-          {weightFormOpen ? (
+          {weightTrackingEnabled && weightFormOpen ? (
             <View style={styles.formPanel}>
               <Text style={styles.fieldLabel}>Nuevo peso</Text>
               <View style={styles.inlineField}>
@@ -132,7 +155,7 @@ export default function PersonalScreen() {
             </View>
           ) : null}
 
-          {profileEditing ? (
+          {weightTrackingEnabled && profileEditing ? (
             <View style={styles.formPanel}>
               <View style={styles.profileEditRow}>
                 <View style={{ flex: 0.8 }}>
@@ -158,15 +181,17 @@ export default function PersonalScreen() {
           ) : null}
         </Card>
 
-        <Card style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={[styles.iconBox, { backgroundColor: GymTheme.activeDim }]}>
-              <MaterialCommunityIcons name="calendar-check" size={21} color={GymTheme.active} />
+        {weightTrackingEnabled ? (
+          <Card style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={[styles.iconBox, { backgroundColor: GymTheme.activeDim }]}>
+                <MaterialCommunityIcons name="calendar-check" size={21} color={GymTheme.active} />
+              </View>
+              <Text style={styles.cardTitle}>Frecuencia de entrenamiento</Text>
             </View>
-            <Text style={styles.cardTitle}>Frecuencia de entrenamiento</Text>
-          </View>
-          <ActivityHeatmap activity={activity} />
-        </Card>
+            <ActivityHeatmap activity={activity} />
+          </Card>
+        ) : null}
       </ScrollView>
     </Screen>
   );
@@ -228,6 +253,7 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: GymTheme.border },
   profileHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   profileValues: { flex: 1, flexDirection: 'row', gap: Spacing.sm },
+  bodySummary: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   dataValue: { flex: 1, backgroundColor: GymTheme.surfaceAlt, borderRadius: Radius.md, padding: Spacing.md, gap: 3 },
   dataLabel: { color: GymTheme.textFaint, fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
   dataText: { color: GymTheme.text, fontSize: 14, fontWeight: '800' },

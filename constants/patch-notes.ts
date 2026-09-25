@@ -77,7 +77,12 @@ export const PATCH_NOTES: VersionNotes[] = [
       {
         title: 'Horario semanal de pesaje',
         detail:
-          'Al activar el aviso de peso desde Notificaciones se puede elegir tanto el día de la semana como la hora exacta del recordatorio.',
+          'Al activar el aviso de peso desde Notificaciones se puede elegir el día y la hora exacta, incluidos los minutos, mediante el selector horario del sistema.',
+      },
+      {
+        title: 'Seguimiento de peso opcional',
+        detail:
+          'Ajustes permite desactivar por completo el registro semanal. Personal pasa entonces a mostrar únicamente peso, altura y edad en modo lectura.',
       },
       {
         title: 'Crear ejercicios al preparar un día',
@@ -155,6 +160,11 @@ export const PATCH_NOTES: VersionNotes[] = [
         title: 'Colores coherentes durante el entrenamiento',
         detail:
           'El ejercicio activo y sus cápsulas de descanso usan ahora el color de su tipo. Aguante adopta el mismo formato compacto de descansos que Musculación y Corporal.',
+      },
+      {
+        title: 'Estado correcto del recordatorio de peso',
+        detail:
+          'La campana de Personal solo se ilumina cuando el seguimiento y su notificación semanal están realmente activados.',
       },
     ],
   },

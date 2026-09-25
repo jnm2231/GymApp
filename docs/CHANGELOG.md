@@ -59,7 +59,11 @@ publicar una versión.
   - *Modelo de datos:* Cardio unificado, preferencia de notificaciones y esquema
     v7.
 - **Horario semanal de pesaje.** La sección Notificaciones muestra el selector
-  de día y hora únicamente cuando el recordatorio de peso está activado.
+  de día y hora únicamente cuando el recordatorio de peso está activado. La hora
+  se elige con el control nativo del sistema e incluye horas y minutos.
+- **Seguimiento de peso opcional.** Un interruptor maestro permite desactivar el
+  registro semanal. En ese estado Personal oculta gráficas, campana y controles,
+  y muestra únicamente peso, altura y edad en modo lectura.
 - **Crear ejercicios al preparar un día.** La creación y edición de días permite
   abrir un formulario visible, elegir el tipo del ejercicio, crearlo y
   seleccionarlo al instante sin pasar antes por Ajustes.
@@ -109,6 +113,8 @@ publicar una versión.
   y las cápsulas de descanso adoptan el color de su tipo: naranja para
   Musculación, verde para Corporal, azul para Cardio y violeta para Aguante. Los
   descansos de Aguante usan el mismo formato compacto que el resto de series.
+- **Estado correcto del recordatorio de peso.** La campana de Personal solo se
+  ilumina cuando están activos tanto el seguimiento como su aviso semanal.
 
 ---
 

@@ -23,7 +23,11 @@ export async function disableWeeklyWeightReminder(): Promise<void> {
   if (Notifications) await cancelExisting(Notifications);
 }
 
-export async function scheduleWeeklyWeightReminder(day = 1, hour = 9): Promise<boolean> {
+export async function scheduleWeeklyWeightReminder(
+  day = 1,
+  hour = 9,
+  minute = 0
+): Promise<boolean> {
   const Notifications = await loadNotifications();
   if (!Notifications) return false;
 
@@ -49,19 +53,28 @@ export async function scheduleWeeklyWeightReminder(day = 1, hour = 9): Promise<b
       type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
       weekday: day + 1,
       hour,
-      minute: 0,
+      minute,
       ...(Platform.OS === 'android' ? { channelId: 'body-records' } : {}),
     },
   });
   return true;
 }
 
-export async function ensureWeeklyWeightReminder(day = 1, hour = 9): Promise<boolean> {
+export async function ensureWeeklyWeightReminder(day = 1, hour = 9, minute = 0): Promise<boolean> {
   const Notifications = await loadNotifications();
   if (!Notifications) return false;
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   const existing = scheduled.find((item) => item.content.data?.type === BODY_REMINDER_TYPE);
-  const trigger = existing?.trigger as { type?: string; weekday?: number; hour?: number } | undefined;
-  if (trigger?.type === 'weekly' && trigger.weekday === day + 1 && trigger.hour === hour) return true;
-  return scheduleWeeklyWeightReminder(day, hour);
+  const trigger = existing?.trigger as
+    | { type?: string; weekday?: number; hour?: number; minute?: number }
+    | undefined;
+  if (
+    trigger?.type === 'weekly' &&
+    trigger.weekday === day + 1 &&
+    trigger.hour === hour &&
+    trigger.minute === minute
+  ) {
+    return true;
+  }
+  return scheduleWeeklyWeightReminder(day, hour, minute);
 }
