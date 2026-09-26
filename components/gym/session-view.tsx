@@ -106,6 +106,21 @@ export function SessionView() {
 
   if (loading || !session) return <Loading />;
 
+  // La plantilla conserva su orden original en la base de datos. En pantalla,
+  // los ejercicios terminados quedan arriba y el ejercicio enfocado pasa a ser
+  // el primero de los pendientes para que la sesión siga el orden real.
+  const orderedBlocks = [...blocks].sort((a, b) => {
+    const aDone = a.status === 'done';
+    const bDone = b.status === 'done';
+    if (aDone !== bDone) return aDone ? -1 : 1;
+    if (aDone && bDone && a.end_ts !== b.end_ts) {
+      return (a.end_ts ?? Number.MAX_SAFE_INTEGER) - (b.end_ts ?? Number.MAX_SAFE_INTEGER);
+    }
+    if (a.id === focusedId && b.id !== focusedId) return -1;
+    if (b.id === focusedId && a.id !== focusedId) return 1;
+    return a.position - b.position;
+  });
+
   const handlePause = async () => {
     await pauseSession(db, session.id);
     await load();
@@ -238,7 +253,7 @@ export function SessionView() {
           </View>
         ) : null}
 
-        {blocks.map((b) => (
+        {orderedBlocks.map((b) => (
           <View
             key={b.id}
             onLayout={(e) => {

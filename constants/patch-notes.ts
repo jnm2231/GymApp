@@ -166,6 +166,26 @@ export const PATCH_NOTES: VersionNotes[] = [
         detail:
           'La campana de Personal solo se ilumina cuando el seguimiento y su notificación semanal están realmente activados.',
       },
+      {
+        title: 'Histórico con selección más clara',
+        detail:
+          'El gráfico permite arrastrar la selección, muestra una guía vertical sobre el punto y coloca el cartel fuera del punto con texto estable.',
+      },
+      {
+        title: 'Cronómetros visibles en notificaciones',
+        detail:
+          'Las notificaciones de descanso, Aguante y Cardio conservan la marca temporal necesaria para mostrar el tiempo transcurrido en Android, también con la aplicación en segundo plano.',
+      },
+      {
+        title: 'Orden real de los ejercicios',
+        detail:
+          'Al elegir ejercicios fuera del orden de la plantilla, el activo aparece primero entre los pendientes y los ya terminados quedan arriba.',
+      },
+      {
+        title: 'Meses del mapa de actividad en una línea',
+        detail:
+          'Las etiquetas mensuales tienen ahora una posición y anchura propias para no partirse en varias líneas.',
+      },
     ],
   },
   {

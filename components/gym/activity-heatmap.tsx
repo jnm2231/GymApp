@@ -15,6 +15,7 @@ const DAY_LABELS = ['L', '', 'X', '', 'V', '', ''];
 interface WeekColumn {
   key: string;
   month: string;
+  monthColumn: number;
   days: {
     key: string;
     future: boolean;
@@ -39,7 +40,8 @@ export function ActivityHeatmap({ activity }: { activity: TrainingActivityDay[] 
           <View style={styles.monthRow}>
             <View style={styles.dayLabelSpacer} />
             {columns.map((column) => (
-              <Text key={column.key} style={styles.monthLabel}>
+              <Text key={column.key} numberOfLines={1}
+                style={[styles.monthLabel, { left: 24 + column.monthColumn * (CELL + GAP) }]}>
                 {column.month}
               </Text>
             ))}
@@ -146,6 +148,7 @@ function buildHeatmap(activity: TrainingActivityDay[]) {
     columns.push({
       key: dateKey(weekStart.getTime()),
       month: showMonth ? MONTHS[month] : '',
+      monthColumn: week,
       days,
     });
   }
@@ -167,13 +170,14 @@ const LEVEL_COLORS = [
 ];
 
 const styles = StyleSheet.create({
-  monthRow: { flexDirection: 'row', marginBottom: 5 },
+  monthRow: { width: 24 + WEEKS * (CELL + GAP), height: 14, position: 'relative', marginBottom: 5 },
   dayLabelSpacer: { width: 24 },
   monthLabel: {
-    width: CELL + GAP,
+    position: 'absolute',
+    width: 30,
     color: GymTheme.textFaint,
     fontSize: 9,
-    overflow: 'visible',
+    includeFontPadding: false,
   },
   body: { flexDirection: 'row' },
   dayLabels: { width: 24, gap: GAP },

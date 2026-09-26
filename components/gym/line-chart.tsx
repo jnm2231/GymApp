@@ -38,17 +38,9 @@ export function LineChart({
   const innerW = width - padL - padR;
   const innerH = height - padT - padB;
 
-  if (points.length === 0) {
-    return (
-      <View style={[styles.empty, { width, height }]}>
-        <Text style={styles.emptyText}>Sin datos suficientes para el gráfico.</Text>
-      </View>
-    );
-  }
-
   const values = points.map((p) => p.value);
-  let min = Math.min(...values);
-  let max = Math.max(...values);
+  let min = values.length > 0 ? Math.min(...values) : 0;
+  let max = values.length > 0 ? Math.max(...values) : 1;
   if (min === max) {
     // Evita división por cero con un único valor (o todos iguales).
     min = min - 1;
@@ -78,9 +70,36 @@ export function LineChart({
   const tooltipLeft = selectedIndex == null
     ? 0
     : Math.max(8, Math.min(width - tooltipWidth - 8, xAt(selectedIndex) - tooltipWidth / 2));
+  const tooltipHeight = 64;
+  const selectedY = selectedIndex == null ? 0 : yAt(points[selectedIndex].value);
+  const preferredTooltipTop = selectedY - tooltipHeight - 12;
+  const tooltipTop = preferredTooltipTop >= 8
+    ? preferredTooltipTop
+    : Math.min(height - tooltipHeight - 8, selectedY + 12);
+  const selectAtX = (x: number) => {
+    if (points.length === 0) return;
+    const chartX = Math.max(padL, Math.min(width - padR, x));
+    const index = points.length === 1
+      ? 0
+      : Math.round(((chartX - padL) / innerW) * (points.length - 1));
+    setSelectedIndex(Math.max(0, Math.min(points.length - 1, index)));
+  };
+
+  if (points.length === 0) {
+    return (
+      <View style={[styles.empty, { width, height }]}>
+        <Text style={styles.emptyText}>Sin datos suficientes para el gráfico.</Text>
+      </View>
+    );
+  }
 
   return (
-    <View style={{ width, height }}>
+    <View
+      style={{ width, height }}
+      onStartShouldSetResponderCapture={() => true}
+      onMoveShouldSetResponderCapture={() => true}
+      onResponderGrant={(event) => selectAtX(event.nativeEvent.locationX)}
+      onResponderMove={(event) => selectAtX(event.nativeEvent.locationX)}>
     <Svg width={width} height={height}>
       {guides.map((g, idx) => (
         <Line
@@ -114,8 +133,23 @@ export function LineChart({
         strokeLinecap="round"
       />
 
+      {selectedIndex != null ? (
+        <Line
+          x1={xAt(selectedIndex)}
+          y1={padT}
+          x2={xAt(selectedIndex)}
+          y2={padT + innerH}
+          stroke={color}
+          strokeWidth={1}
+          strokeDasharray="4 3"
+          opacity={0.7}
+        />
+      ) : null}
+
       {points.map((p, i) => (
-        <Circle key={`c${i}`} cx={xAt(i)} cy={yAt(p.value)} r={3.5} fill={color} />
+        <Circle key={`c${i}`} cx={xAt(i)} cy={yAt(p.value)} r={selectedIndex === i ? 6 : 3.5}
+          fill={selectedIndex === i ? GymTheme.surface : color}
+          stroke={selectedIndex === i ? color : undefined} strokeWidth={selectedIndex === i ? 2 : 0} />
       ))}
 
       {points.map((p, i) => p.tooltip ? (
@@ -138,9 +172,9 @@ export function LineChart({
       )}
     </Svg>
     {selected?.tooltip ? (
-      <View pointerEvents="none" style={[styles.tooltip, { width: tooltipWidth, left: tooltipLeft }]}>
-        <Text style={styles.tooltipTitle}>{selected.tooltip.title}</Text>
-        {selected.tooltip.lines.map((line, index) => <Text key={index} style={styles.tooltipLine}>{line}</Text>)}
+      <View pointerEvents="none" style={[styles.tooltip, { width: tooltipWidth, left: tooltipLeft, top: tooltipTop }]}>
+        <Text numberOfLines={1} style={styles.tooltipTitle}>{selected.tooltip.title}</Text>
+        {selected.tooltip.lines.map((line, index) => <Text numberOfLines={1} key={index} style={styles.tooltipLine}>{line}</Text>)}
       </View>
     ) : null}
     </View>
@@ -151,7 +185,8 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', justifyContent: 'center' },
   emptyText: { color: GymTheme.textFaint, fontSize: 13 },
   tooltip: { position: 'absolute', top: 8, backgroundColor: GymTheme.surfaceElevated,
-    borderWidth: 1, borderColor: GymTheme.primary, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 8 },
+    borderWidth: 1, borderColor: GymTheme.primary, borderRadius: 10, paddingHorizontal: 11,
+    paddingVertical: 8, minHeight: 64 },
   tooltipTitle: { color: GymTheme.text, fontSize: 12, fontWeight: '800', marginBottom: 2 },
-  tooltipLine: { color: GymTheme.textMuted, fontSize: 11, lineHeight: 15 },
+  tooltipLine: { color: GymTheme.textMuted, fontSize: 11, lineHeight: 15, flexShrink: 0 },
 });
