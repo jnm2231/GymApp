@@ -10,7 +10,10 @@ import {
   ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export function Screen({
   children,
@@ -74,6 +77,11 @@ export function Button({
   textStyle?: StyleProp<TextStyle>;
   left?: React.ReactNode;
 }) {
+  const pressProgress = useSharedValue(0);
+  const pressStyle = useAnimatedStyle(() => ({
+    opacity: 1 - pressProgress.value * 0.12,
+    transform: [{ scale: 1 - pressProgress.value * 0.025 }],
+  }));
   const bg: Record<ButtonVariant, string> = {
     primary: GymTheme.primary,
     active: GymTheme.active,
@@ -89,14 +97,17 @@ export function Button({
     ghost: GymTheme.textMuted,
   };
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
       disabled={disabled || loading}
-      style={({ pressed }) => [
+      onPressIn={() => { pressProgress.value = withTiming(1, { duration: 90, easing: Easing.out(Easing.quad) }); }}
+      onPressOut={() => { pressProgress.value = withTiming(0, { duration: 160, easing: Easing.out(Easing.quad) }); }}
+      style={[
         styles.button,
-        { backgroundColor: bg[variant], opacity: disabled ? 0.45 : pressed ? 0.85 : 1 },
+        { backgroundColor: bg[variant], opacity: disabled ? 0.45 : 1 },
         variant === 'ghost' && styles.ghostBorder,
         style,
+        !disabled && !loading && pressStyle,
       ]}>
       {loading ? (
         <ActivityIndicator color={fg[variant]} />
@@ -106,7 +117,7 @@ export function Button({
           <Text style={[styles.buttonText, { color: fg[variant] }, textStyle]}>{title}</Text>
         </View>
       )}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 

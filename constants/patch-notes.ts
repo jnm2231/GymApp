@@ -30,6 +30,24 @@ export interface VersionNotes {
 /** Ordenadas de más reciente a más antigua. */
 export const PATCH_NOTES: VersionNotes[] = [
   {
+    version: '1.4.0',
+    date: null,
+    summary: 'Navegación y controles más fluidos.',
+    features: [
+      {
+        title: 'Transiciones más suaves',
+        detail:
+          'Las pestañas, la vista del histórico, las pantallas de detalle y el paso de inicio a entrenamiento cambian con transiciones breves.',
+      },
+      {
+        title: 'Botones con respuesta natural',
+        detail:
+          'Los botones principales ofrecen una ligera animación al pulsarlos, sin demorar la acción.',
+      },
+    ],
+    fixes: [],
+  },
+  {
     version: '1.3.1',
     date: '2026-09-27',
     summary: 'Correcciones del histórico, cronómetros, orden de ejercicios y mapa de actividad.',
@@ -356,4 +374,4 @@ export const PATCH_NOTES: VersionNotes[] = [
 ];
 
 /** Versión más reciente (la primera de la lista). */
-export const CURRENT_VERSION = PATCH_NOTES[0]?.version ?? '1.3.1';
+export const CURRENT_VERSION = PATCH_NOTES[0]?.version ?? '1.4.0';

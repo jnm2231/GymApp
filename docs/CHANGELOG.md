@@ -10,6 +10,17 @@ publicar una versión.
 
 ---
 
+## v1.4.0 — en desarrollo
+
+### Nuevas funcionalidades
+- **Transiciones más suaves.** Las pestañas, la vista del histórico, las
+  pantallas de detalle y el paso de inicio a entrenamiento cambian con
+  transiciones breves.
+- **Botones con respuesta natural.** Los botones principales tienen una ligera
+  animación al pulsarlos, sin retrasar la acción.
+
+---
+
 ## v1.3.1 — 2026-09-27
 
 ### Solución de errores

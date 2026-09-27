@@ -3,6 +3,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { EmptyState, Screen, ScreenTitle } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
@@ -56,6 +57,7 @@ export default function HistoricoScreen() {
           <ViewChip label="Por días" icon="calendar-text" active={view === 'days'} onPress={() => setView('days')} />
         </View>
 
+        <Animated.View key={view} entering={FadeIn.duration(160)} style={styles.results}>
         {view === 'exercises' ? (
           <>
             <View style={styles.sortRow}>
@@ -103,6 +105,7 @@ export default function HistoricoScreen() {
             );
           })
         )}
+        </Animated.View>
       </ScrollView>
     </Screen>
   );
@@ -145,6 +148,7 @@ function SortChip({ label, active, onPress }: { label: string; active: boolean; 
 
 const styles = StyleSheet.create({
   content: { padding: Spacing.lg, gap: Spacing.sm, paddingBottom: Spacing.xxl },
+  results: { gap: Spacing.sm },
   viewSelector: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm },
   viewChip: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7,
     borderWidth: 1, borderColor: GymTheme.border, borderRadius: Radius.md, paddingVertical: 11, backgroundColor: GymTheme.surface },

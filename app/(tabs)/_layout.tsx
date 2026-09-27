@@ -37,6 +37,8 @@ export default function TabLayout() {
         tabBarStyle: styles.bar,
         tabBarButton: HapticTab,
         lazy: false,
+        animation: 'fade',
+        transitionSpec: { animation: 'timing', config: { duration: 190 } },
       }}>
       <Tabs.Screen
         name="personal"

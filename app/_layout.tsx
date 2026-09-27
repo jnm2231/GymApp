@@ -49,6 +49,8 @@ export default function RootLayout() {
                       headerStyle: { backgroundColor: GymTheme.background },
                       headerTintColor: GymTheme.text,
                       contentStyle: { backgroundColor: GymTheme.background },
+                      animation: 'fade_from_bottom',
+                      animationDuration: 220,
                     }}>
                     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                     <Stack.Screen
