@@ -3,7 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 /**
  * Versión del esquema. Se guarda con PRAGMA user_version para futuras migraciones.
  */
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 /**
  * Definición de tablas (Paso 1).
@@ -128,6 +128,22 @@ CREATE TABLE IF NOT EXISTS cardio_entries (
   FOREIGN KEY (session_exercise_id) REFERENCES session_exercises(id) ON DELETE CASCADE
 );
 
+-- Actividades externas y su asignación a plantillas de cardio.
+CREATE TABLE IF NOT EXISTS strava_mappings (
+  sport_type TEXT PRIMARY KEY,
+  day_id INTEGER NOT NULL REFERENCES days(id) ON DELETE CASCADE
+);
+CREATE TABLE IF NOT EXISTS strava_activities (
+  activity_id TEXT PRIMARY KEY,
+  athlete_id TEXT NOT NULL,
+  sport_type TEXT NOT NULL,
+  name TEXT NOT NULL,
+  start_ts INTEGER NOT NULL,
+  session_id INTEGER UNIQUE REFERENCES sessions(id) ON DELETE SET NULL,
+  detail_loaded INTEGER NOT NULL DEFAULT 0,
+  raw_json TEXT NOT NULL
+);
+
 -- Notas de Desarrollo (Backlog). EXCLUIDA de export/import.
 CREATE TABLE IF NOT EXISTS dev_notes (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -145,6 +161,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_status         ON sessions(status);
 CREATE INDEX IF NOT EXISTS idx_sessions_start          ON sessions(start_ts);
 CREATE INDEX IF NOT EXISTS idx_body_measurements_date  ON body_measurements(recorded_at);
 CREATE INDEX IF NOT EXISTS idx_cardio_entries_exercise ON cardio_entries(session_exercise_id);
+CREATE INDEX IF NOT EXISTS idx_strava_activities_pending ON strava_activities(session_id, sport_type);
 `;
 
 /**

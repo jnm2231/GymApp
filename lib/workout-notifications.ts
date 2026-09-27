@@ -109,7 +109,9 @@ function timerNotificationId(sessionId: number): string {
 
 /**
  * Muestra un cronómetro persistente. En Android una pequeña extensión nativa
- * activa el cronómetro del sistema, que sigue contando con la app cerrada.
+ * incluye un Chronometer en el cuerpo (plegado y expandido), que Android
+ * actualiza aunque el proceso de la app no esté ejecutándose. Requiere APK
+ * compilado con patches/expo-notifications+57.0.21.patch; no basta recargar JS.
  */
 export async function showTimerNotification(
   db: SQLiteDatabase,

@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { dateKey } from '@/lib/format';
+import { getStravaActivityForSession, type StoredStravaActivity } from './strava';
 import type {
   CardioEntry,
   CardioTracking,
@@ -33,6 +34,7 @@ export interface CalendarDayDetailExercise {
 
 export interface CalendarDayBlock extends CalendarSession {
   exercises: CalendarDayDetailExercise[];
+  strava_activity: StoredStravaActivity | null;
 }
 
 /**
@@ -127,7 +129,8 @@ export async function getDayDetail(
       );
       withSets.push({ ...e, sets, cardio_entry: cardioEntry ?? null });
     }
-    blocks.push({ ...s, exercises: withSets });
+    const stravaActivity = await getStravaActivityForSession(db, s.session_id);
+    blocks.push({ ...s, exercises: withSets, strava_activity: stravaActivity });
   }
   return blocks;
 }

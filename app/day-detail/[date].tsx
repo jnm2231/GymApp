@@ -7,6 +7,7 @@ import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'reac
 import { EmptyState, Loading } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { CalendarDayBlock, getDayDetail } from '@/db/calendar';
+import type { StravaActivity } from '@/db/strava';
 import {
   formatCardioSummary,
   formatClock,
@@ -19,7 +20,7 @@ import { getDayType, getTrainingType } from '@/lib/training-types';
 
 export default function DayDetailScreen() {
   const db = useSQLiteContext();
-  const { date } = useLocalSearchParams<{ date: string }>();
+  const { date, sessionId } = useLocalSearchParams<{ date: string; sessionId?: string }>();
 
   const [blocks, setBlocks] = useState<CalendarDayBlock[]>([]);
   const [selected, setSelected] = useState<CalendarDayBlock | null>(null);
@@ -34,10 +35,11 @@ export default function DayDetailScreen() {
       setBlocks(data);
       // Cambio 1: si la jornada tiene un solo tipo de día, saltamos el nivel 1
       // y mostramos directamente sus ejercicios (nivel 2).
-      if (data.length === 1) setSelected(data[0]);
+      if (sessionId) setSelected(data.find((block) => block.session_id === Number(sessionId)) ?? null);
+      else if (data.length === 1) setSelected(data[0]);
       setLoading(false);
     })();
-  }, [db, date]);
+  }, [db, date, sessionId]);
 
   // Cuando hay varios tipos de día, el "atrás" del nivel 2 debe volver al nivel 1
   // (no al calendario). Interceptamos el botón físico de Android.
@@ -94,6 +96,8 @@ export default function DayDetailScreen() {
               {formatHM(selected.start_ts)} - {formatHM(selected.end_ts)}
             </Text>
           </View>
+
+          {selected.strava_activity ? <StravaMetrics activity={JSON.parse(selected.strava_activity.raw_json) as StravaActivity} /> : null}
 
           {selected.exercises.map((ex) => {
             const variableWeight = ex.sets.some((s) => s.weight != null && s.weight !== ex.weight);
@@ -187,6 +191,27 @@ export default function DayDetailScreen() {
         )}
       </ScrollView>
     </>
+  );
+}
+
+function StravaMetrics({ activity }: { activity: StravaActivity }) {
+  const metrics = [
+    typeof activity.calories === 'number' ? `${Math.round(activity.calories)} kcal` : null,
+    typeof activity.total_elevation_gain === 'number' ? `Desnivel +${Math.round(activity.total_elevation_gain)} m` : null,
+    typeof activity.moving_time === 'number' ? `En movimiento ${formatClock(activity.moving_time)}` : null,
+    typeof activity.elapsed_time === 'number' ? `Tiempo total ${formatClock(activity.elapsed_time)}` : null,
+    typeof activity.average_heartrate === 'number' ? `Pulso medio ${Math.round(activity.average_heartrate)} ppm` : null,
+    typeof activity.max_heartrate === 'number' ? `Pulso máximo ${Math.round(activity.max_heartrate)} ppm` : null,
+    typeof activity.average_speed === 'number' ? `Velocidad media ${(activity.average_speed * 3.6).toFixed(1)} km/h` : null,
+    typeof activity.max_speed === 'number' ? `Velocidad máxima ${(activity.max_speed * 3.6).toFixed(1)} km/h` : null,
+  ].filter(Boolean);
+  return (
+    <View style={{ backgroundColor: GymTheme.surface, borderColor: GymTheme.border, borderWidth: 1,
+      borderRadius: Radius.md, padding: Spacing.md, gap: Spacing.xs }}>
+      <Text style={{ color: GymTheme.primary, fontWeight: '800' }}>Strava · {activity.sport_type || activity.type}</Text>
+      {activity.device_name ? <Text style={{ color: GymTheme.textMuted }}>Registrado con {activity.device_name}</Text> : null}
+      {metrics.map((metric) => <Text key={metric} style={{ color: GymTheme.text }}>{metric}</Text>)}
+    </View>
   );
 }
 

@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Modal,
@@ -19,6 +19,7 @@ import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { CalendarSession, getMonthSessions } from '@/db/calendar';
 import { dateKey } from '@/lib/format';
 import { getDayType } from '@/lib/training-types';
+import { subscribeToStravaUpdates } from '@/lib/strava-sync';
 
 const MONTHS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -75,6 +76,7 @@ export default function CalendarioScreen() {
       load();
     }, [load])
   );
+  useEffect(() => subscribeToStravaUpdates(() => { void load(); }), [load]);
 
   const onMomentumEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const i = Math.round(e.nativeEvent.contentOffset.x / width);

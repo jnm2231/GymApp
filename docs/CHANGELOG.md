@@ -10,14 +10,28 @@ publicar una versión.
 
 ---
 
-## v1.4.0 — en desarrollo
+## v1.4.0 — 2026-09-27
 
 ### Nuevas funcionalidades
+- **Conexión con Strava.** Vinculación desde Ajustes, selección entre últimos
+  90 días, todo el historial o solo actividades futuras, y asignación de cada
+  tipo de actividad a un día de cardio. Las actividades sin asignar esperan;
+  las importadas aparecen en Calendario e Histórico con sus métricas y detalle de Strava.
+  La sincronización se realiza al abrir o reactivar la app y también a petición.
+  - *Modelo de datos:* tablas `strava_mappings` y `strava_activities`, esquema v9.
 - **Transiciones más suaves.** Las pestañas, la vista del histórico, las
   pantallas de detalle y el paso de inicio a entrenamiento cambian con
   transiciones breves.
 - **Botones con respuesta natural.** Los botones principales tienen una ligera
   animación al pulsarlos, sin retrasar la acción.
+
+### Solución de errores
+- **Retorno de la vinculación con Strava.** La aplicación reconoce el enlace
+  de autorización y termina la conexión al volver desde Strava.
+- **Contador dentro de la notificación.** Descansos, Aguante y Cardio incluyen
+  un cronómetro nativo en el cuerpo de la notificación Android, tanto plegada
+  como expandida. Ya no depende solo del espacio reservado a la hora en la
+  cabecera. Requiere instalar un APK nuevo.
 
 ---
 

@@ -16,6 +16,8 @@ const BACKUP_TABLES = [
   'session_exercises',
   'sets',
   'cardio_entries',
+  'strava_mappings',
+  'strava_activities',
 ] as const;
 
 type BackupTable = (typeof BACKUP_TABLES)[number];
@@ -33,6 +35,9 @@ export async function buildBackup(db: SQLiteDatabase): Promise<BackupFile> {
   for (const t of BACKUP_TABLES) {
     tables[t] = await db.getAllAsync<Record<string, unknown>>(`SELECT * FROM ${t}`);
   }
+  // El cursor de sincronización no forma parte de la copia: al restaurarla se
+  // vuelve a consultar Strava, deduplicando por activity_id.
+  tables.settings = tables.settings.filter((row) => !String(row.key).startsWith('strava_'));
   return {
     app: 'GymApp',
     schemaVersion: SCHEMA_VERSION,
@@ -77,6 +82,8 @@ export async function restoreBackup(db: SQLiteDatabase, data: unknown): Promise<
         );
       }
     }
+
+    await db.runAsync("DELETE FROM settings WHERE key LIKE 'strava_%'");
 
     // Las copias anteriores a v5 guardaban los ejercicios de peso corporal
     // como un indicador dentro de Musculación. Al restaurarlas, aplicamos la

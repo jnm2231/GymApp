@@ -1,7 +1,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
@@ -9,12 +9,15 @@ import { EmptyState, Screen, ScreenTitle } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { getDayExercises, listDaysWithCount } from '@/db/days';
 import { getPerformedExerciseSummaries } from '@/db/history';
+import { listImportedStravaActivities, type ImportedStravaActivity } from '@/db/strava';
 import type { PerformedExerciseSummary } from '@/db/history';
 import type { DayWithCount, Exercise } from '@/db/types';
 import { getDayType, getTrainingType } from '@/lib/training-types';
+import { dateKey, formatDate, formatHM } from '@/lib/format';
+import { subscribeToStravaUpdates } from '@/lib/strava-sync';
 
 type HistorySort = 'name' | 'count' | 'oneRm';
-type HistoryView = 'exercises' | 'days';
+type HistoryView = 'exercises' | 'days' | 'strava';
 
 export default function HistoricoScreen() {
   const db = useSQLiteContext();
@@ -23,6 +26,7 @@ export default function HistoricoScreen() {
   const [dayExercises, setDayExercises] = useState<Record<number, Exercise[]>>({});
   const [expandedDays, setExpandedDays] = useState<number[]>([]);
   const [performed, setPerformed] = useState<PerformedExerciseSummary[]>([]);
+  const [stravaActivities, setStravaActivities] = useState<ImportedStravaActivity[]>([]);
   const [sort, setSort] = useState<HistorySort>('name');
 
   const load = useCallback(async () => {
@@ -32,9 +36,11 @@ export default function HistoricoScreen() {
     setDays(nextDays);
     setDayExercises(exercisesByDay);
     setPerformed(await getPerformedExerciseSummaries(db));
+    setStravaActivities(await listImportedStravaActivities(db));
   }, [db]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
+  useEffect(() => subscribeToStravaUpdates(() => { void load(); }), [load]);
 
   const sortedPerformed = [...performed].sort((a, b) => {
     if (sort === 'count') return b.timesPerformed - a.timesPerformed || a.name.localeCompare(b.name);
@@ -53,8 +59,9 @@ export default function HistoricoScreen() {
       <ScreenTitle>Histórico</ScreenTitle>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.viewSelector}>
-          <ViewChip label="Por ejercicios" icon="dumbbell" active={view === 'exercises'} onPress={() => setView('exercises')} />
-          <ViewChip label="Por días" icon="calendar-text" active={view === 'days'} onPress={() => setView('days')} />
+          <ViewChip label="Ejercicios" icon="dumbbell" active={view === 'exercises'} onPress={() => setView('exercises')} />
+          <ViewChip label="Días" icon="calendar-text" active={view === 'days'} onPress={() => setView('days')} />
+          <ViewChip label="Strava" icon="run" active={view === 'strava'} onPress={() => setView('strava')} />
         </View>
 
         <Animated.View key={view} entering={FadeIn.duration(160)} style={styles.results}>
@@ -69,6 +76,23 @@ export default function HistoricoScreen() {
               <EmptyState title="Aún no hay datos" subtitle="Finaliza un entrenamiento para ver aquí tus ejercicios." />
             ) : sortedPerformed.map((exercise) => <ExerciseRow key={`${exercise.exerciseId ?? 'deleted'}-${exercise.name}`} exercise={exercise} />)}
           </>
+        ) : view === 'strava' ? (
+          stravaActivities.length === 0 ? (
+            <EmptyState title="Sin actividades de Strava" subtitle="Vincula Strava desde Ajustes y asigna sus deportes a un día de cardio." />
+          ) : stravaActivities.map((activity) => (
+            <Pressable key={activity.activity_id} style={[styles.row, { borderColor: getDayType('cardio').color }]}
+              onPress={() => router.push({ pathname: '/day-detail/[date]',
+                params: { date: dateKey(activity.start_ts), sessionId: String(activity.session_id) } })}>
+              <MaterialCommunityIcons name="run" size={20} color={getDayType('cardio').color} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowText}>{activity.name}</Text>
+                <Text style={styles.rowSub}>
+                  {formatDate(activity.start_ts)} · {formatHM(activity.start_ts)} · {activity.sport_type} · {activity.day_name}
+                </Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={22} color={GymTheme.textFaint} />
+            </Pressable>
+          ))
         ) : days.length === 0 ? (
           <EmptyState title="No hay días creados" />
         ) : (
@@ -130,7 +154,7 @@ function ExerciseRow({ exercise }: { exercise: PerformedExerciseSummary }) {
 }
 
 function ViewChip({ label, icon, active, onPress }: {
-  label: string; icon: 'dumbbell' | 'calendar-text'; active: boolean; onPress: () => void;
+  label: string; icon: 'dumbbell' | 'calendar-text' | 'run'; active: boolean; onPress: () => void;
 }) {
   return (
     <Pressable style={[styles.viewChip, active && styles.viewChipActive]} onPress={onPress}>

@@ -55,6 +55,7 @@ export async function getPerformedExerciseSummaries(
        JOIN sessions s ON s.id = se.session_id
        LEFT JOIN exercises e ON e.id = se.exercise_id
       WHERE s.status = 'finished'
+        AND NOT EXISTS (SELECT 1 FROM strava_activities sa WHERE sa.session_id = s.id)
         AND (
           EXISTS (SELECT 1 FROM sets st WHERE st.session_exercise_id = se.id)
           OR EXISTS (SELECT 1 FROM cardio_entries ce WHERE ce.session_exercise_id = se.id)

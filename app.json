@@ -12,7 +12,7 @@
     },
     "android": {
       "package": "com.jnm2231.gymapp",
-      "versionCode": 8,
+      "versionCode": 9,
       "adaptiveIcon": {
         "backgroundColor": "#0C0C0E",
         "foregroundImage": "./assets/images/logo.png"
@@ -44,7 +44,8 @@
       "expo-sharing",
       "expo-web-browser",
       "expo-status-bar",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

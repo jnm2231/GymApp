@@ -290,6 +290,15 @@ export default function AjustesScreen() {
         </View>
 
         <View style={styles.card}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionIcon}><MaterialCommunityIcons name="run" size={20} color={GymTheme.primary} /></View>
+            <Text style={styles.cardTitle}>Strava</Text>
+          </View>
+          <Text style={styles.infoText}>Vincula tu cuenta y asigna los tipos de actividad a tus días de cardio.</Text>
+          <Button title="Configurar Strava" variant="surface" onPress={() => router.push('/strava')} />
+        </View>
+
+        <View style={styles.card}>
           <SectionHeader icon="database-outline" title="Copias de seguridad" section="backup" info={info} setInfo={setInfo} />
           {info === 'backup' ? <InfoText>Exporta o restaura todos los datos en un archivo JSON. Las notas de desarrollo no se incluyen.</InfoText> : null}
           <View style={styles.actionRow}>

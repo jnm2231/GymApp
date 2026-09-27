@@ -31,9 +31,14 @@ export interface VersionNotes {
 export const PATCH_NOTES: VersionNotes[] = [
   {
     version: '1.4.0',
-    date: null,
-    summary: 'Navegación y controles más fluidos.',
+    date: '2026-09-27',
+    summary: 'Conexión con Strava y controles más fluidos.',
     features: [
+      {
+        title: 'Conexión con Strava',
+        detail:
+          'Vincula tu cuenta desde Ajustes, elige cuánto historial importar y asigna cada actividad de Strava a un día de cardio. Consulta las importaciones en Calendario e Histórico.',
+      },
       {
         title: 'Transiciones más suaves',
         detail:
@@ -45,7 +50,18 @@ export const PATCH_NOTES: VersionNotes[] = [
           'Los botones principales ofrecen una ligera animación al pulsarlos, sin demorar la acción.',
       },
     ],
-    fixes: [],
+    fixes: [
+      {
+        title: 'Retorno de la vinculación con Strava',
+        detail:
+          'GymApp reconoce la respuesta de autorización de Strava y completa la conexión al volver a la aplicación.',
+      },
+      {
+        title: 'Contador dentro de la notificación',
+        detail:
+          'Los descansos, Aguante y Cardio muestran un cronómetro en el cuerpo de la notificación Android, tanto plegada como expandida. El contador ya no depende solo del espacio de la hora en la cabecera.',
+      },
+    ],
   },
   {
     version: '1.3.1',

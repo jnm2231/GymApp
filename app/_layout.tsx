@@ -2,7 +2,8 @@ import { Stack } from 'expo-router';
 import { DarkTheme, ThemeProvider } from 'expo-router/react-navigation';
 import { StatusBar } from 'expo-status-bar';
 import { Suspense, type ReactNode } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
@@ -13,6 +14,7 @@ import { Loading } from '@/components/gym/ui';
 import { GymTheme } from '@/constants/gym-theme';
 import { SessionProvider } from '@/context/session-context';
 import { DATABASE_NAME, initDatabase } from '@/db/schema';
+import { syncStrava } from '@/lib/strava-sync';
 import {
   subscribeToWorkoutNotificationResponses,
 } from '@/lib/workout-notifications';
@@ -42,6 +44,7 @@ export default function RootLayout() {
           <SQLiteProvider databaseName={DATABASE_NAME} onInit={initDatabase} useSuspense>
             <NotificationBridge>
               <SessionProvider>
+              <StravaSyncBridge />
               <ThemeProvider value={NavTheme}>
                 <AlertProvider>
                   <Stack
@@ -60,6 +63,8 @@ export default function RootLayout() {
                     <Stack.Screen name="exercise/[id]" options={{ title: 'Histórico' }} />
                     <Stack.Screen name="day-detail/[date]" options={{ title: 'Detalle del día' }} />
                     <Stack.Screen name="patch-notes" options={{ title: 'Historial de versiones' }} />
+                    <Stack.Screen name="strava" options={{ title: 'Strava' }} />
+                    <Stack.Screen name="strava-callback" options={{ headerShown: false }} />
                   </Stack>
                   <StatusBar style="light" />
                 </AlertProvider>
@@ -71,6 +76,26 @@ export default function RootLayout() {
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
+}
+
+function StravaSyncBridge() {
+  const db = useSQLiteContext();
+  const lastAttempt = useRef(0);
+  useEffect(() => {
+    const sync = () => {
+      if (Date.now() - lastAttempt.current < 60_000) return;
+      lastAttempt.current = Date.now();
+      void syncStrava(db).catch(() => {
+        // Sin conexión, GymApp sigue usando los datos locales; se reintentará al volver.
+      });
+    };
+    sync();
+    const listener = AppState.addEventListener('change', (state) => {
+      if (state === 'active') sync();
+    });
+    return () => listener.remove();
+  }, [db]);
+  return null;
 }
 
 function NotificationBridge({ children }: { children: ReactNode }) {
