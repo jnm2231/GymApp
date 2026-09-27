@@ -10,6 +10,23 @@ publicar una versión.
 
 ---
 
+## v1.3.1 — 2026-09-27
+
+### Solución de errores
+- **Histórico más legible.** El punto seleccionado se puede seguir arrastrando,
+  se marca con una guía vertical y el cartel se recoloca para no taparlo; sus
+  líneas de texto permanecen estables.
+- **Cronómetros de notificaciones corregidos.** Descansos, Aguante y Cardio
+  envían la marca temporal que necesita el cronómetro Android para continuar
+  contando en segundo plano.
+- **Orden real de realización.** El ejercicio enfocado pasa al primer lugar de
+  los pendientes y los ya terminados quedan por encima, respetando el orden real
+  de la sesión.
+- **Etiquetas mensuales del mapa corregidas.** Los meses se posicionan con
+  anchura suficiente para mantenerse en una sola línea.
+
+---
+
 ## v1.3.0 — 2026-09-20
 
 ### Nuevas funcionalidades
@@ -116,17 +133,6 @@ publicar una versión.
   descansos de Aguante usan el mismo formato compacto que el resto de series.
 - **Estado correcto del recordatorio de peso.** La campana de Personal solo se
   ilumina cuando están activos tanto el seguimiento como su aviso semanal.
-- **Histórico más legible.** El punto seleccionado se puede seguir arrastrando,
-  se marca con una guía vertical y el cartel se recoloca para no taparlo; sus
-  líneas de texto permanecen estables.
-- **Cronómetros de notificaciones corregidos.** Descansos, Aguante y Cardio
-  envían la marca temporal que necesita el cronómetro Android para continuar
-  contando en segundo plano.
-- **Orden real de realización.** El ejercicio enfocado pasa al primer lugar de
-  los pendientes y los ya terminados quedan por encima, respetando el orden real
-  de la sesión.
-- **Etiquetas mensuales del mapa corregidas.** Los meses se posicionan con
-  anchura suficiente para mantenerse en una sola línea.
 
 ---
 

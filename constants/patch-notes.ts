@@ -30,6 +30,34 @@ export interface VersionNotes {
 /** Ordenadas de más reciente a más antigua. */
 export const PATCH_NOTES: VersionNotes[] = [
   {
+    version: '1.3.1',
+    date: '2026-09-27',
+    summary: 'Correcciones del histórico, cronómetros, orden de ejercicios y mapa de actividad.',
+    features: [],
+    fixes: [
+      {
+        title: 'Histórico con selección más clara',
+        detail:
+          'El gráfico permite arrastrar la selección, muestra una guía vertical sobre el punto y coloca el cartel fuera del punto con texto estable.',
+      },
+      {
+        title: 'Cronómetros visibles en notificaciones',
+        detail:
+          'Las notificaciones de descanso, Aguante y Cardio conservan la marca temporal necesaria para mostrar el tiempo transcurrido en Android, también con la aplicación en segundo plano.',
+      },
+      {
+        title: 'Orden real de los ejercicios',
+        detail:
+          'Al elegir ejercicios fuera del orden de la plantilla, el activo aparece primero entre los pendientes y los ya terminados quedan arriba.',
+      },
+      {
+        title: 'Meses del mapa de actividad en una línea',
+        detail:
+          'Las etiquetas mensuales tienen ahora una posición y anchura propias para no partirse en varias líneas.',
+      },
+    ],
+  },
+  {
     version: '1.3.0',
     date: '2026-09-20',
     summary: 'Estimaciones, histórico ampliado, registro corporal y nuevos tipos de entrenamiento.',
@@ -165,26 +193,6 @@ export const PATCH_NOTES: VersionNotes[] = [
         title: 'Estado correcto del recordatorio de peso',
         detail:
           'La campana de Personal solo se ilumina cuando el seguimiento y su notificación semanal están realmente activados.',
-      },
-      {
-        title: 'Histórico con selección más clara',
-        detail:
-          'El gráfico permite arrastrar la selección, muestra una guía vertical sobre el punto y coloca el cartel fuera del punto con texto estable.',
-      },
-      {
-        title: 'Cronómetros visibles en notificaciones',
-        detail:
-          'Las notificaciones de descanso, Aguante y Cardio conservan la marca temporal necesaria para mostrar el tiempo transcurrido en Android, también con la aplicación en segundo plano.',
-      },
-      {
-        title: 'Orden real de los ejercicios',
-        detail:
-          'Al elegir ejercicios fuera del orden de la plantilla, el activo aparece primero entre los pendientes y los ya terminados quedan arriba.',
-      },
-      {
-        title: 'Meses del mapa de actividad en una línea',
-        detail:
-          'Las etiquetas mensuales tienen ahora una posición y anchura propias para no partirse en varias líneas.',
       },
     ],
   },
@@ -343,4 +351,4 @@ export const PATCH_NOTES: VersionNotes[] = [
 ];
 
 /** Versión más reciente (la primera de la lista). */
-export const CURRENT_VERSION = PATCH_NOTES[0]?.version ?? '1.3.0';
+export const CURRENT_VERSION = PATCH_NOTES[0]?.version ?? '1.3.1';
