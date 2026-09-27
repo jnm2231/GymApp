@@ -55,6 +55,11 @@ export const PATCH_NOTES: VersionNotes[] = [
         detail:
           'Las etiquetas mensuales tienen ahora una posición y anchura propias para no partirse en varias líneas.',
       },
+      {
+        title: 'Entrenar con un resalte más integrado',
+        detail:
+          'El botón seleccionado cambia el halo blanco por un aro y un resplandor naranja suave, acorde con la identidad visual de la app.',
+      },
     ],
   },
   {

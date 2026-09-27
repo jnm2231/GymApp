@@ -24,6 +24,8 @@ publicar una versión.
   de la sesión.
 - **Etiquetas mensuales del mapa corregidas.** Los meses se posicionan con
   anchura suficiente para mantenerse en una sola línea.
+- **Entrenar con un resalte más integrado.** El estado seleccionado sustituye
+  la iluminación blanca por un aro y un resplandor naranja suave.
 
 ---
 
