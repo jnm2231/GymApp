@@ -27,6 +27,7 @@ export default function ExerciseDetailScreen() {
   const [name, setName] = useState('Ejercicio');
   const [history, setHistory] = useState<ExerciseHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPoint, setSelectedPoint] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -59,7 +60,9 @@ export default function ExerciseDetailScreen() {
   return (
     <>
       <Stack.Screen options={{ title: name }} />
-      <ScrollView style={{ flex: 1, backgroundColor: GymTheme.background }} contentContainerStyle={styles.content}>
+      <ScrollView style={{ flex: 1, backgroundColor: GymTheme.background }}
+        contentContainerStyle={styles.content}
+        onTouchStart={() => setSelectedPoint(null)}>
         {history.length === 0 ? (
           <EmptyState
             title="Sin registros todavía"
@@ -76,7 +79,8 @@ export default function ExerciseDetailScreen() {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>1RM promedio</Text>
               <Text style={styles.cardSub}>Media del 1RM de todas las series de cada día.</Text>
-              <LineChart points={points} width={width - Spacing.lg * 2 - Spacing.lg * 2} />
+              <LineChart points={points} width={width - Spacing.lg * 2 - Spacing.lg * 2}
+                selectedIndex={selectedPoint} onSelectionChange={setSelectedPoint} />
             </View>
             ) : null}
 

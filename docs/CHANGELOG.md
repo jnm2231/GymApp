@@ -14,8 +14,9 @@ publicar una versión.
 
 ### Solución de errores
 - **Histórico más legible.** El punto seleccionado se puede seguir arrastrando,
-  se marca con una guía vertical y el cartel se recoloca para no taparlo; sus
-  líneas de texto permanecen estables.
+  se marca con una guía vertical y el cartel se recoloca para no taparlo. El
+  cartel es más compacto, aparece suavemente y se cierra al tocar fuera del
+  gráfico.
 - **Cronómetros de notificaciones corregidos.** Descansos, Aguante y Cardio
   envían la marca temporal que necesita el cronómetro Android para continuar
   contando en segundo plano.

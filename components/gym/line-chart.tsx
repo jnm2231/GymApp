@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Animated, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
 
 import { GymTheme } from '@/constants/gym-theme';
@@ -23,13 +23,32 @@ export function LineChart({
   width,
   color = GymTheme.primary,
   valueFormatter = (value) => String(Math.round(value)),
+  selectedIndex,
+  onSelectionChange,
 }: {
   points: ChartPoint[];
   width: number;
   color?: string;
   valueFormatter?: (value: number) => string;
+  selectedIndex?: number | null;
+  onSelectionChange?: (index: number | null) => void;
 }) {
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [internalSelectedIndex, setInternalSelectedIndex] = useState<number | null>(null);
+  const requestedIndex = selectedIndex === undefined ? internalSelectedIndex : selectedIndex;
+  const activeIndex = requestedIndex != null && requestedIndex >= 0 && requestedIndex < points.length
+    ? requestedIndex
+    : null;
+  const [fade] = useState(() => new Animated.Value(0));
+  const selectionVisible = activeIndex != null;
+  useEffect(() => {
+    if (!selectionVisible) {
+      fade.setValue(0);
+      return;
+    }
+    fade.setValue(0);
+    Animated.timing(fade, { toValue: 1, duration: 140, useNativeDriver: true }).start();
+  }, [selectionVisible, fade]);
+  const setSelection = onSelectionChange ?? setInternalSelectedIndex;
   const height = 200;
   const padL = 38;
   const padR = 14;
@@ -65,24 +84,30 @@ export function LineChart({
   const maxLabels = Math.max(2, Math.floor(innerW / 56));
   const step = Math.ceil(points.length / maxLabels);
 
-  const selected = selectedIndex == null ? null : points[selectedIndex];
-  const tooltipWidth = Math.min(190, width - 16);
-  const tooltipLeft = selectedIndex == null
+  const selected = activeIndex == null ? null : points[activeIndex];
+  const tooltipWidth = Math.min(
+    width - 16,
+    Math.max(138, Math.min(190, 22 + Math.max(
+      selected?.tooltip?.title.length ?? 0,
+      ...(selected?.tooltip?.lines.map((line) => line.length) ?? [0])
+    ) * 5.6))
+  );
+  const tooltipLeft = activeIndex == null
     ? 0
-    : Math.max(8, Math.min(width - tooltipWidth - 8, xAt(selectedIndex) - tooltipWidth / 2));
-  const tooltipHeight = 64;
-  const selectedY = selectedIndex == null ? 0 : yAt(points[selectedIndex].value);
-  const preferredTooltipTop = selectedY - tooltipHeight - 12;
-  const tooltipTop = preferredTooltipTop >= 8
+    : Math.max(8, Math.min(width - tooltipWidth - 8, xAt(activeIndex) - tooltipWidth / 2));
+  const tooltipHeight = 26 + (selected?.tooltip?.lines.length ?? 0) * 14;
+  const selectedY = activeIndex == null ? 0 : yAt(points[activeIndex].value);
+  const preferredTooltipTop = selectedY - tooltipHeight - 10;
+  const tooltipTop = preferredTooltipTop >= 4
     ? preferredTooltipTop
-    : Math.min(height - tooltipHeight - 8, selectedY + 12);
+    : Math.min(height - tooltipHeight - 4, selectedY + 10);
   const selectAtX = (x: number) => {
     if (points.length === 0) return;
     const chartX = Math.max(padL, Math.min(width - padR, x));
     const index = points.length === 1
       ? 0
       : Math.round(((chartX - padL) / innerW) * (points.length - 1));
-    setSelectedIndex(Math.max(0, Math.min(points.length - 1, index)));
+    setSelection(Math.max(0, Math.min(points.length - 1, index)));
   };
 
   if (points.length === 0) {
@@ -96,6 +121,7 @@ export function LineChart({
   return (
     <View
       style={{ width, height }}
+      onTouchStart={(event) => event.stopPropagation()}
       onStartShouldSetResponderCapture={() => true}
       onMoveShouldSetResponderCapture={() => true}
       onResponderGrant={(event) => selectAtX(event.nativeEvent.locationX)}
@@ -133,11 +159,11 @@ export function LineChart({
         strokeLinecap="round"
       />
 
-      {selectedIndex != null ? (
+      {activeIndex != null ? (
         <Line
-          x1={xAt(selectedIndex)}
+          x1={xAt(activeIndex)}
           y1={padT}
-          x2={xAt(selectedIndex)}
+          x2={xAt(activeIndex)}
           y2={padT + innerH}
           stroke={color}
           strokeWidth={1}
@@ -147,15 +173,10 @@ export function LineChart({
       ) : null}
 
       {points.map((p, i) => (
-        <Circle key={`c${i}`} cx={xAt(i)} cy={yAt(p.value)} r={selectedIndex === i ? 6 : 3.5}
-          fill={selectedIndex === i ? GymTheme.surface : color}
-          stroke={selectedIndex === i ? color : undefined} strokeWidth={selectedIndex === i ? 2 : 0} />
+        <Circle key={`c${i}`} cx={xAt(i)} cy={yAt(p.value)} r={activeIndex === i ? 6 : 3.5}
+          fill={activeIndex === i ? GymTheme.surface : color}
+          stroke={activeIndex === i ? color : undefined} strokeWidth={activeIndex === i ? 2 : 0} />
       ))}
-
-      {points.map((p, i) => p.tooltip ? (
-        <Circle key={`hit${i}`} cx={xAt(i)} cy={yAt(p.value)} r={14} fill="transparent"
-          onPress={() => setSelectedIndex((current) => current === i ? null : i)} />
-      ) : null)}
 
       {points.map((p, i) =>
         i % step === 0 || i === points.length - 1 ? (
@@ -172,10 +193,16 @@ export function LineChart({
       )}
     </Svg>
     {selected?.tooltip ? (
-      <View pointerEvents="none" style={[styles.tooltip, { width: tooltipWidth, left: tooltipLeft, top: tooltipTop }]}>
+      <Animated.View pointerEvents="none" style={[styles.tooltip, {
+        width: tooltipWidth,
+        left: tooltipLeft,
+        top: tooltipTop,
+        opacity: fade,
+        transform: [{ translateY: fade.interpolate({ inputRange: [0, 1], outputRange: [4, 0] }) }],
+      }]}>
         <Text numberOfLines={1} style={styles.tooltipTitle}>{selected.tooltip.title}</Text>
         {selected.tooltip.lines.map((line, index) => <Text numberOfLines={1} key={index} style={styles.tooltipLine}>{line}</Text>)}
-      </View>
+      </Animated.View>
     ) : null}
     </View>
   );
@@ -184,9 +211,9 @@ export function LineChart({
 const styles = StyleSheet.create({
   empty: { alignItems: 'center', justifyContent: 'center' },
   emptyText: { color: GymTheme.textFaint, fontSize: 13 },
-  tooltip: { position: 'absolute', top: 8, backgroundColor: GymTheme.surfaceElevated,
-    borderWidth: 1, borderColor: GymTheme.primary, borderRadius: 10, paddingHorizontal: 11,
-    paddingVertical: 8, minHeight: 64 },
-  tooltipTitle: { color: GymTheme.text, fontSize: 12, fontWeight: '800', marginBottom: 2 },
-  tooltipLine: { color: GymTheme.textMuted, fontSize: 11, lineHeight: 15, flexShrink: 0 },
+  tooltip: { position: 'absolute', backgroundColor: GymTheme.surfaceElevated,
+    borderWidth: 1, borderColor: GymTheme.primaryDim, borderRadius: 9,
+    paddingHorizontal: 9, paddingVertical: 6 },
+  tooltipTitle: { color: GymTheme.text, fontSize: 11, fontWeight: '800', marginBottom: 1 },
+  tooltipLine: { color: GymTheme.textMuted, fontSize: 10, lineHeight: 14 },
 });

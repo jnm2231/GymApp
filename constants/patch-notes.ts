@@ -38,7 +38,7 @@ export const PATCH_NOTES: VersionNotes[] = [
       {
         title: 'Histórico con selección más clara',
         detail:
-          'El gráfico permite arrastrar la selección, muestra una guía vertical sobre el punto y coloca el cartel fuera del punto con texto estable.',
+          'El gráfico permite arrastrar la selección y muestra una guía vertical. El cartel es más compacto, aparece suavemente y se cierra al tocar fuera del gráfico.',
       },
       {
         title: 'Cronómetros visibles en notificaciones',
