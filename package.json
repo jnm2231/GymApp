@@ -1,7 +1,7 @@
 {
   "name": "gymapp",
   "main": "expo-router/entry",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "scripts": {
     "start": "expo start",
     "postinstall": "patch-package --error-on-fail",
@@ -53,5 +53,14 @@
     "patch-package": "^8.0.1",
     "typescript": "~6.0.3"
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "autolinking": {
+      "android": {
+        "buildFromSource": [
+          "expo-notifications"
+        ]
+      }
+    }
+  }
 }

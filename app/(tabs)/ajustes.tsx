@@ -23,22 +23,18 @@ import {
   setWeightReminderHour,
   setWeightReminderMinute,
 } from '@/db/body';
-import { createExercise, deleteExercise, listExercises } from '@/db/exercises';
 import { getDevNote, saveDevNote } from '@/db/notes';
-import type { Exercise, TrainingType } from '@/db/types';
 import { exportBackup, importBackup } from '@/lib/backup-io';
 import { disableWeeklyWeightReminder, ensureWeeklyWeightReminder, scheduleWeeklyWeightReminder } from '@/lib/body-notifications';
-import { getTrainingType, TRAINING_TYPES } from '@/lib/training-types';
 import { useKeyboardHeight } from '@/lib/use-keyboard';
 import { getTimerNotificationsEnabled, setTimerNotificationsEnabled } from '@/lib/workout-notifications';
 
-const CATALOG_PREVIEW = 5;
 const WEEKDAYS = [
   { value: 1, label: 'L' }, { value: 2, label: 'M' }, { value: 3, label: 'X' },
   { value: 4, label: 'J' }, { value: 5, label: 'V' }, { value: 6, label: 'S' },
   { value: 0, label: 'D' },
 ];
-type InfoSection = 'body' | 'notifications' | 'catalog' | 'days' | 'backup' | 'notes' | null;
+type InfoSection = 'body' | 'notifications' | 'days' | 'backup' | 'notes' | null;
 
 export default function AjustesScreen() {
   const db = useSQLiteContext();
@@ -55,17 +51,12 @@ export default function AjustesScreen() {
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [draftReminderTime, setDraftReminderTime] = useState(() => new Date(2000, 0, 1, 9, 0));
   const [timerNotifications, setTimerNotifications] = useState(false);
-  const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [catalogExpanded, setCatalogExpanded] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newExerciseType, setNewExerciseType] = useState<TrainingType>('strength');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [info, setInfo] = useState<InfoSection>(null);
 
   const load = useCallback(async () => {
     const profile = await getBodyProfile(db);
-    const nextExercises = await listExercises(db);
     const devNote = await getDevNote(db);
     const timersEnabled = await getTimerNotificationsEnabled(db);
     setWeeklyWeightTrackingState(profile.weeklyWeightTracking);
@@ -74,7 +65,6 @@ export default function AjustesScreen() {
     setWeightReminderHourState(profile.weightReminderHour);
     setWeightReminderMinuteState(profile.weightReminderMinute);
     setTimerNotifications(timersEnabled);
-    setExercises(nextExercises);
     setNote(devNote?.content ?? '');
     if (profile.weeklyWeightTracking && profile.weeklyWeightReminder) {
       void ensureWeeklyWeightReminder(
@@ -147,28 +137,6 @@ export default function AjustesScreen() {
     setTimerNotifications(enabled);
     const changed = await setTimerNotificationsEnabled(db, enabled);
     if (!changed) setTimerNotifications(false);
-  };
-
-  const handleAddExercise = async () => {
-    const name = newName.trim();
-    if (!name) return;
-    try {
-      await createExercise(db, name, newExerciseType);
-      setNewName('');
-      setExercises(await listExercises(db));
-    } catch {
-      showAlert('Ya existe', `El ejercicio "${name}" ya está en el catálogo.`);
-    }
-  };
-
-  const handleDeleteExercise = (exercise: Exercise) => {
-    showAlert('Eliminar ejercicio', `¿Eliminar "${exercise.name}" del catálogo? El histórico se conserva.`, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Eliminar', style: 'destructive', onPress: async () => {
-        await deleteExercise(db, exercise.id);
-        setExercises(await listExercises(db));
-      } },
-    ]);
   };
 
   const handleExport = async () => {
@@ -244,42 +212,6 @@ export default function AjustesScreen() {
           ) : null}
           <SettingRow icon="timer-outline" title="Cronómetros"
             subtitle="Descansos, Aguante y Cardio" value={timerNotifications} onChange={handleTimerNotificationsChange} />
-        </View>
-
-        <View style={styles.card}>
-          <SectionHeader icon="format-list-bulleted" title="Ejercicios" section="catalog" info={info} setInfo={setInfo} />
-          {info === 'catalog' ? <InfoText>Catálogo disponible al crear un día. Corporal incluye el peso propio y Aguante registra tiempo.</InfoText> : null}
-          {(catalogExpanded ? exercises : exercises.slice(0, CATALOG_PREVIEW)).map((exercise) => {
-            const type = getTrainingType(exercise.exercise_type);
-            return (
-              <View key={exercise.id} style={styles.exerciseRow}>
-                <MaterialCommunityIcons name={type.icon} size={19} color={type.color} />
-                <Text style={styles.exerciseName}>{exercise.name}</Text>
-                <Text style={[styles.tag, { color: type.color }]}>{type.label}</Text>
-                <Pressable hitSlop={8} onPress={() => handleDeleteExercise(exercise)}>
-                  <MaterialCommunityIcons name="trash-can-outline" size={19} color={GymTheme.danger} />
-                </Pressable>
-              </View>
-            );
-          })}
-          {exercises.length > CATALOG_PREVIEW ? (
-            <Pressable style={styles.expandRow} onPress={() => setCatalogExpanded((value) => !value)}>
-              <Text style={styles.expandText}>{catalogExpanded ? 'Ver menos' : `Ver todos (${exercises.length})`}</Text>
-              <MaterialCommunityIcons name={catalogExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={GymTheme.primary} />
-            </Pressable>
-          ) : null}
-          <View style={styles.divider} />
-          <TextInput style={styles.input} placeholder="Nombre del ejercicio" placeholderTextColor={GymTheme.textFaint}
-            value={newName} onChangeText={setNewName} onSubmitEditing={handleAddExercise} />
-          <View style={styles.typeSelector}>
-            {TRAINING_TYPES.map((type) => (
-              <Pressable key={type.value} onPress={() => setNewExerciseType(type.value)}
-                style={[styles.typeChip, newExerciseType === type.value && { borderColor: type.color, backgroundColor: type.dimColor }]}>
-                <Text style={[styles.typeChipText, newExerciseType === type.value && { color: type.color }]}>{type.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-          <Button title="Añadir ejercicio" onPress={handleAddExercise} />
         </View>
 
         <View style={styles.card}>
@@ -471,16 +403,6 @@ const styles = StyleSheet.create({
   modalConfirm: { backgroundColor: GymTheme.primary, borderRadius: Radius.md,
     paddingHorizontal: Spacing.lg, paddingVertical: 11 },
   modalConfirmText: { color: '#160B00', fontSize: 14, fontWeight: '800' },
-  exerciseRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 5 },
-  exerciseName: { color: GymTheme.text, fontSize: 14, flex: 1, fontWeight: '600' },
-  tag: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', backgroundColor: GymTheme.surfaceAlt, paddingHorizontal: 7, paddingVertical: 2, borderRadius: Radius.sm },
-  divider: { height: 1, backgroundColor: GymTheme.border },
-  expandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 },
-  expandText: { color: GymTheme.primary, fontSize: 13, fontWeight: '700' },
-  input: { width: '100%', backgroundColor: GymTheme.inputBg, borderWidth: 1, borderColor: GymTheme.border, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 11, color: GymTheme.text, fontSize: 15 },
-  typeSelector: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  typeChip: { borderWidth: 1, borderColor: GymTheme.border, borderRadius: Radius.pill, paddingHorizontal: Spacing.md, paddingVertical: 7, backgroundColor: GymTheme.surfaceAlt },
-  typeChipText: { color: GymTheme.textMuted, fontSize: 12, fontWeight: '700' },
   actionRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   textarea: { backgroundColor: GymTheme.inputBg, borderWidth: 1, borderColor: GymTheme.border, borderRadius: Radius.md, padding: Spacing.md, color: GymTheme.text, fontSize: 14, minHeight: 110 },
   about: { alignItems: 'center', gap: 4, marginTop: Spacing.sm },

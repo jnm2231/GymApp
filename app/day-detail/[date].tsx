@@ -8,6 +8,8 @@ import { EmptyState, Loading } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { CalendarDayBlock, getDayDetail } from '@/db/calendar';
 import type { StravaActivity } from '@/db/strava';
+import type { ExerciseSet } from '@/db/types';
+import { groupSetsByIndex } from '@/lib/calc';
 import {
   formatCardioSummary,
   formatClock,
@@ -102,6 +104,9 @@ export default function DayDetailScreen() {
           {selected.exercises.map((ex) => {
             const variableWeight = ex.sets.some((s) => s.weight != null && s.weight !== ex.weight);
             const exerciseType = getTrainingType(ex.exercise_type);
+            const isUnilateral = ex.is_unilateral === 1;
+            const groups = isUnilateral ? groupSetsByIndex(ex.sets) : [];
+            const holdSetCount = isUnilateral ? groups.length : ex.sets.length;
             return (
             <Pressable
               key={ex.session_exercise_id}
@@ -117,7 +122,7 @@ export default function DayDetailScreen() {
                   {ex.exercise_type === 'cardio'
                     ? formatCardioSummary(ex.cardio_entry?.duration_seconds, ex.cardio_entry?.distance_km)
                     : ex.exercise_type === 'hold'
-                      ? `${ex.sets.length} ${ex.sets.length === 1 ? 'serie' : 'series'}`
+                      ? `${holdSetCount} ${holdSetCount === 1 ? 'serie' : 'series'}`
                     : variableWeight
                       ? 'pesos variables'
                       : `${ex.weight ?? 0} kg`}
@@ -125,22 +130,33 @@ export default function DayDetailScreen() {
               </View>
               <Text style={styles.exTimes}>
                 ({formatHM(ex.start_ts)} - {formatHM(ex.end_ts)})
+                {isUnilateral && ex.exercise_type !== 'cardio' ? ' · Unilateral' : ''}
               </Text>
               {ex.exercise_type !== 'cardio' ? (
                 <View style={styles.repsList}>
-                  {ex.sets.map((s) => (
-                    <View key={s.id} style={styles.repPill}>
-                      <Text style={styles.repValue}>
-                        {ex.exercise_type === 'hold' ? formatClock(s.duration_seconds ?? 0) : s.reps}
-                      </Text>
-                      {ex.exercise_type !== 'hold' && variableWeight ? (
-                        <Text style={styles.repWeight}>{s.weight ?? ex.weight ?? 0} kg</Text>
-                      ) : null}
-                      <Text style={styles.repRest}>
-                        {s.rest_seconds == null ? 'inicio' : formatRest(s.rest_seconds)}
-                      </Text>
-                    </View>
-                  ))}
+                  {isUnilateral
+                    ? groups.map((group) => (
+                        <UnilateralSetPill
+                          key={group.setIndex}
+                          items={group.items}
+                          globalWeight={ex.weight}
+                          variableWeight={variableWeight}
+                          isHold={ex.exercise_type === 'hold'}
+                        />
+                      ))
+                    : ex.sets.map((s) => (
+                        <View key={s.id} style={styles.repPill}>
+                          <Text style={styles.repValue}>
+                            {ex.exercise_type === 'hold' ? formatClock(s.duration_seconds ?? 0) : s.reps}
+                          </Text>
+                          {ex.exercise_type !== 'hold' && variableWeight ? (
+                            <Text style={styles.repWeight}>{s.weight ?? ex.weight ?? 0} kg</Text>
+                          ) : null}
+                          <Text style={styles.repRest}>
+                            {s.rest_seconds == null ? 'inicio' : formatRest(s.rest_seconds)}
+                          </Text>
+                        </View>
+                      ))}
                 </View>
               ) : ex.cardio_entry?.notes ? (
                 <Text style={styles.exTimes}>{ex.cardio_entry.notes}</Text>
@@ -194,21 +210,87 @@ export default function DayDetailScreen() {
   );
 }
 
+function UnilateralSetPill({
+  items,
+  globalWeight,
+  variableWeight,
+  isHold,
+}: {
+  items: ExerciseSet[];
+  globalWeight: number | null;
+  variableWeight: boolean;
+  isHold: boolean;
+}) {
+  const ordered = [...items].sort(
+    (a, b) => (a.side_order ?? 0) - (b.side_order ?? 0) || a.id - b.id
+  );
+  const first = ordered[0];
+  const second = ordered[1];
+  const sideLabel = (side: ExerciseSet['side']) =>
+    side === 'left' ? 'I' : side === 'right' ? 'D' : '—';
+  const formatVal = (set: ExerciseSet) =>
+    isHold ? formatClock(set.duration_seconds ?? 0) : String(set.reps);
+
+  const sideRest = ordered.find((s) => s.side_rest_seconds != null)?.side_rest_seconds ?? null;
+  const interSetRest = ordered.find((s) => s.rest_seconds != null)?.rest_seconds ?? null;
+  const w1 = first ? (first.weight ?? globalWeight ?? 0) : 0;
+  const w2 = second ? (second.weight ?? globalWeight ?? 0) : 0;
+  const weightLabel = second
+    ? w1 === w2
+      ? `${w1} kg`
+      : `${w1}/${w2} kg`
+    : `${w1} kg`;
+
+  return (
+    <View style={[styles.repPill, styles.unilateralPill]}>
+      <View style={styles.unilateralSidesRow}>
+        {first ? (
+          <View style={styles.unilateralSideItem}>
+            <Text style={styles.sideLabel}>{sideLabel(first.side)}</Text>
+            <Text style={styles.repValue}>{formatVal(first)}</Text>
+          </View>
+        ) : null}
+        {second ? (
+          <>
+            <Text style={styles.sideRestText}>
+              {sideRest != null ? `· ${formatRest(sideRest)} ·` : '/'}
+            </Text>
+            <View style={styles.unilateralSideItem}>
+              <Text style={styles.sideLabel}>{sideLabel(second.side)}</Text>
+              <Text style={styles.repValue}>{formatVal(second)}</Text>
+            </View>
+          </>
+        ) : null}
+      </View>
+      {!isHold && variableWeight ? <Text style={styles.repWeight}>{weightLabel}</Text> : null}
+      <Text style={styles.repRest}>
+        {interSetRest == null ? 'inicio' : formatRest(interSetRest)}
+      </Text>
+    </View>
+  );
+}
+
 function StravaMetrics({ activity }: { activity: StravaActivity }) {
+  const sport = activity.sport_type || activity.type || '';
+  const usesPace = /^(Run|TrailRun|VirtualRun|Walk|Hike)$/.test(sport);
+  const pace = usesPace &&
+    typeof activity.average_speed === 'number' && activity.average_speed > 0
+    ? Math.round(1000 / activity.average_speed) : null;
   const metrics = [
-    typeof activity.calories === 'number' ? `${Math.round(activity.calories)} kcal` : null,
+    pace != null ? `Ritmo medio ${formatClock(pace)} min/km` : null,
     typeof activity.total_elevation_gain === 'number' ? `Desnivel +${Math.round(activity.total_elevation_gain)} m` : null,
     typeof activity.moving_time === 'number' ? `En movimiento ${formatClock(activity.moving_time)}` : null,
     typeof activity.elapsed_time === 'number' ? `Tiempo total ${formatClock(activity.elapsed_time)}` : null,
     typeof activity.average_heartrate === 'number' ? `Pulso medio ${Math.round(activity.average_heartrate)} ppm` : null,
     typeof activity.max_heartrate === 'number' ? `Pulso máximo ${Math.round(activity.max_heartrate)} ppm` : null,
-    typeof activity.average_speed === 'number' ? `Velocidad media ${(activity.average_speed * 3.6).toFixed(1)} km/h` : null,
-    typeof activity.max_speed === 'number' ? `Velocidad máxima ${(activity.max_speed * 3.6).toFixed(1)} km/h` : null,
+    !usesPace && typeof activity.average_speed === 'number' ? `Velocidad media ${(activity.average_speed * 3.6).toFixed(1)} km/h` : null,
+    !usesPace && typeof activity.max_speed === 'number' ? `Velocidad máxima ${(activity.max_speed * 3.6).toFixed(1)} km/h` : null,
   ].filter(Boolean);
   return (
     <View style={{ backgroundColor: GymTheme.surface, borderColor: GymTheme.border, borderWidth: 1,
       borderRadius: Radius.md, padding: Spacing.md, gap: Spacing.xs }}>
       <Text style={{ color: GymTheme.primary, fontWeight: '800' }}>Strava · {activity.sport_type || activity.type}</Text>
+      <Text style={{ color: GymTheme.text }}>{activity.name}</Text>
       {activity.device_name ? <Text style={{ color: GymTheme.textMuted }}>Registrado con {activity.device_name}</Text> : null}
       {metrics.map((metric) => <Text key={metric} style={{ color: GymTheme.text }}>{metric}</Text>)}
     </View>
@@ -270,6 +352,28 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     alignItems: 'center',
     minWidth: 52,
+  },
+  unilateralPill: {
+    minWidth: 76,
+  },
+  unilateralSidesRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+  },
+  unilateralSideItem: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 3,
+  },
+  sideLabel: {
+    color: GymTheme.textMuted,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  sideRestText: {
+    color: GymTheme.textFaint,
+    fontSize: 10,
   },
   repValue: { color: GymTheme.text, fontSize: 16, fontWeight: '800' },
   repWeight: { color: GymTheme.primary, fontSize: 11, fontWeight: '700', marginTop: 1 },

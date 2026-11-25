@@ -1,20 +1,28 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
-import { getLastExerciseSummary } from '@/db/history';
+import { getLastExerciseSummary, type LastExerciseSummary } from '@/db/history';
 import {
   addSet,
+  addUnilateralSetSide,
   finishExercise,
   reopenExercise,
   setExerciseWeight,
   updateSetReps,
   updateSetWeight,
 } from '@/db/sessions';
-import type { SessionExerciseWithSets } from '@/db/types';
-import { formatClock, formatHM, formatRest, repsSummary } from '@/lib/format';
+import type { ExerciseSet, SessionExerciseWithSets, SetSide } from '@/db/types';
+import { groupSetsByIndex } from '@/lib/calc';
+import {
+  formatClock,
+  formatCollapsedSets,
+  formatHM,
+  formatLastExerciseSummary,
+  formatRest,
+} from '@/lib/format';
 import { getTrainingType } from '@/lib/training-types';
 import {
   cancelTimerNotification,
@@ -29,6 +37,7 @@ interface Props {
   sessionUserWeight: number | null; // snapshot del peso del usuario en esta sesión
   onChanged: () => Promise<void>;
   onOpenHistory: (exerciseId: number) => void;
+  onEditExercise: (exerciseId: number, sessionExerciseId: number) => void;
   onFocus: () => void; // pasar a realizar este ejercicio (ponerlo en verde)
   onPostpone: () => void; // posponer el ejercicio activo y elegir otro
   canFocus: boolean; // false cuando ya hay otro ejercicio en curso
@@ -106,9 +115,15 @@ function RestClock({ sinceTs, color, dimColor }: { sinceTs: number; color: strin
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const elapsed = Math.floor((now - sinceTs) / 1000);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setNow(Date.now());
+    });
+    return () => {
+      clearInterval(id);
+      sub.remove();
+    };
+  }, [sinceTs]);
+  const elapsed = Math.max(0, Math.floor((now - sinceTs) / 1000));
   return (
     <View style={[styles.restClock, { backgroundColor: dimColor }]}>
       <MaterialCommunityIcons name="timer-sand-complete" size={15} color={color} />
@@ -118,6 +133,23 @@ function RestClock({ sinceTs, color, dimColor }: { sinceTs: number; color: strin
   );
 }
 
+/** Cronómetro en vivo en texto gris plano entre lados de una serie unilateral. */
+function SideRestClock({ sinceTs }: { sinceTs: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setNow(Date.now());
+    });
+    return () => {
+      clearInterval(id);
+      sub.remove();
+    };
+  }, [sinceTs]);
+  const elapsed = Math.max(0, Math.floor((now - sinceTs) / 1000));
+  return <Text style={styles.sideRestText}>Entre lados · {formatClock(elapsed)}</Text>;
+}
+
 export function ExerciseBlock({
   block,
   isCurrent,
@@ -125,6 +157,7 @@ export function ExerciseBlock({
   sessionUserWeight,
   onChanged,
   onOpenHistory,
+  onEditExercise,
   onFocus,
   onPostpone,
   canFocus,
@@ -133,17 +166,53 @@ export function ExerciseBlock({
   const db = useSQLiteContext();
   const done = block.status === 'done';
   const weightConfirmed = block.weight != null;
+  const isUnilateral = block.is_unilateral === 1;
   const exerciseType = getTrainingType(block.exercise_type);
+
+  const latestSet = block.sets[block.sets.length - 1];
+  const latestEffectiveWeight = latestSet ? (latestSet.weight ?? block.weight) : block.weight;
+  const latestSetId = latestSet?.id ?? null;
 
   const [weightInput, setWeightInput] = useState(block.weight != null ? String(block.weight) : '');
   const [weightEditing, setWeightEditing] = useState(block.weight == null);
   const [repsInput, setRepsInput] = useState('');
-  // Peso de la PRÓXIMA serie a registrar. Por defecto el peso global del ejercicio;
+  const [leftRepsInput, setLeftRepsInput] = useState('');
+  const [rightRepsInput, setRightRepsInput] = useState('');
+  // Peso de la PRÓXIMA serie a registrar. Hereda el último peso efectivo del bloque;
   // el usuario puede sobreescribirlo antes de confirmar la serie.
-  const [newSetWeight, setNewSetWeight] = useState<number | null>(block.weight);
+  const [newSetWeight, setNewSetWeight] = useState<number | null>(latestEffectiveWeight);
+  const [leftWeight, setLeftWeight] = useState<number | null>(latestEffectiveWeight);
+  const [rightWeight, setRightWeight] = useState<number | null>(latestEffectiveWeight);
+  const weightDirtyRef = useRef(false);
+  const prevLatestSetIdRef = useRef<number | null>(latestSetId);
+  const prevBlockWeightRef = useRef<number | null>(block.weight);
+  const prevUniRef = useRef<number>(block.is_unilateral);
+
   const [editing, setEditing] = useState(false); // modo edición de un bloque terminado
   const [editedReps, setEditedReps] = useState<Record<number, string>>({});
-  const [ref, setRef] = useState<{ weight: number | null; reps: number[] } | null>(null);
+  const [ref, setRef] = useState<LastExerciseSummary | null>(null);
+
+  useEffect(() => {
+    const setChanged = prevLatestSetIdRef.current !== latestSetId;
+    const globalWeightChanged = prevBlockWeightRef.current !== block.weight;
+    const uniChanged = prevUniRef.current !== block.is_unilateral;
+
+    prevLatestSetIdRef.current = latestSetId;
+    prevBlockWeightRef.current = block.weight;
+    prevUniRef.current = block.is_unilateral;
+
+    if (globalWeightChanged && !weightEditing) {
+      setWeightInput(block.weight != null ? String(block.weight) : '');
+    }
+
+    if (!setChanged && !globalWeightChanged && !uniChanged) return;
+    if (weightDirtyRef.current) return;
+
+    const nextWeight = globalWeightChanged && !setChanged ? block.weight : latestEffectiveWeight;
+    setNewSetWeight(nextWeight);
+    setLeftWeight(nextWeight);
+    setRightWeight(nextWeight);
+  }, [latestSetId, block.weight, block.is_unilateral, latestEffectiveWeight, weightEditing]);
 
   // Referencia del último día que se hizo este ejercicio.
   useEffect(() => {
@@ -160,13 +229,34 @@ export function ExerciseBlock({
 
   const interactive = (isCurrent && !done) || editing;
 
+  const groups = groupSetsByIndex(block.sets);
+  const lastGroup = groups[groups.length - 1];
+  const inProgressGroup =
+    isUnilateral && lastGroup && lastGroup.items.length === 1 ? lastGroup : null;
+  const completedGroups = isUnilateral
+    ? inProgressGroup
+      ? groups.slice(0, -1)
+      : groups
+    : [];
+  const currentSetIndex = inProgressGroup ? inProgressGroup.setIndex : (lastGroup?.setIndex ?? 0) + 1;
+
   const confirmWeight = async () => {
     const n = parseFloat(weightInput.replace(',', '.'));
     if (!Number.isFinite(n)) return;
     await setExerciseWeight(db, block.id, n);
+    weightDirtyRef.current = false;
     setNewSetWeight(n);
+    setLeftWeight(n);
+    setRightWeight(n);
     setWeightEditing(false);
     await onChanged();
+  };
+
+  const updateUpcomingWeight = (w: number) => {
+    weightDirtyRef.current = true;
+    setNewSetWeight(w);
+    setLeftWeight(w);
+    setRightWeight(w);
   };
 
   const confirmSet = async () => {
@@ -177,8 +267,43 @@ export function ExerciseBlock({
     const createdSet = await addSet(db, block.id, reps, stored);
     await showTimerNotification(db, sessionId, 'rest', block.exercise_name, createdSet.ts);
     await scheduleWorkoutReminder(db, sessionId);
+    weightDirtyRef.current = false;
     setRepsInput('');
-    setNewSetWeight(block.weight); // siguiente serie vuelve al peso global por defecto
+    await onChanged();
+  };
+
+  const confirmUnilateralSide = async (side: SetSide) => {
+    const raw = side === 'left' ? leftRepsInput : rightRepsInput;
+    const reps = parseInt(raw, 10);
+    if (!Number.isInteger(reps) || reps <= 0) return;
+
+    const chosenWeight = side === 'left' ? leftWeight : rightWeight;
+    const stored = block.weight != null && chosenWeight === block.weight ? null : chosenWeight;
+    const isSecondSide = inProgressGroup != null && inProgressGroup.setIndex === currentSetIndex;
+
+    const createdSet = await addUnilateralSetSide(
+      db,
+      block.id,
+      currentSetIndex,
+      side,
+      reps,
+      stored
+    );
+
+    if (isSecondSide) {
+      await showTimerNotification(db, sessionId, 'rest', block.exercise_name, createdSet.ts);
+    } else {
+      await cancelTimerNotification(sessionId);
+    }
+    await scheduleWorkoutReminder(db, sessionId);
+
+    if (side === 'left') setLeftRepsInput('');
+    else setRightRepsInput('');
+
+    weightDirtyRef.current = false;
+    setNewSetWeight(chosenWeight);
+    setLeftWeight(chosenWeight);
+    setRightWeight(chosenWeight);
     await onChanged();
   };
 
@@ -199,7 +324,7 @@ export function ExerciseBlock({
     setEditing(false);
     onFocus();
     const lastSet = block.sets[block.sets.length - 1];
-    if (lastSet) {
+    if (lastSet && (!isUnilateral || inProgressGroup == null)) {
       await showTimerNotification(db, sessionId, 'rest', block.exercise_name, lastSet.ts);
     }
     await onChanged();
@@ -230,9 +355,99 @@ export function ExerciseBlock({
     if (changed) await onChanged();
   };
 
+  const refText = ref ? formatLastExerciseSummary(ref) : '';
+
+  const renderConfirmedSideRow = (s: ExerciseSet) => (
+    <View key={s.id} style={styles.setRow}>
+      <View style={styles.sideBadge}>
+        <Text style={styles.sideBadgeText}>{s.side === 'left' ? 'Izq' : 'Der'}</Text>
+      </View>
+      {editing ? (
+        <TextInput
+          style={styles.repsEdit}
+          keyboardType="number-pad"
+          value={editedReps[s.id] ?? String(s.reps)}
+          onChangeText={(value) =>
+            setEditedReps((current) => ({ ...current, [s.id]: value }))
+          }
+        />
+      ) : (
+        <Text style={styles.setReps}>{s.reps} reps</Text>
+      )}
+      <WeightCell
+        weight={s.weight ?? block.weight ?? 0}
+        editable={interactive}
+        onSave={(w) => saveSetWeight(s.id, w)}
+      />
+    </View>
+  );
+
+  const renderUnilateralGroup = (setIndex: number, items: ExerciseSet[]) => {
+    const ordered = [...items].sort((a, b) => (a.side_order ?? 0) - (b.side_order ?? 0));
+    const first = ordered[0];
+    const second = ordered[1];
+    return (
+      <View key={setIndex} style={styles.uniSetBox}>
+        <View style={styles.uniSetHeader}>
+          <Text style={styles.uniSetTitle}>Serie {setIndex}</Text>
+          {first?.rest_seconds != null ? (
+            <View style={[styles.setRestPill, { backgroundColor: exerciseType.dimColor }]}>
+              <Text style={[styles.setRestText, { color: exerciseType.color }]}>
+                {formatRest(first.rest_seconds)}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+        {first ? renderConfirmedSideRow(first) : null}
+        {second?.side_rest_seconds != null ? (
+          <Text style={styles.sideRestText}>
+            Entre lados · {formatRest(second.side_rest_seconds)}
+          </Text>
+        ) : null}
+        {second ? renderConfirmedSideRow(second) : null}
+      </View>
+    );
+  };
+
+  const renderSideInputRow = (side: SetSide) => {
+    const isLeft = side === 'left';
+    const sideReps = isLeft ? leftRepsInput : rightRepsInput;
+    const setSideReps = isLeft ? setLeftRepsInput : setRightRepsInput;
+    const sideWeight = (isLeft ? leftWeight : rightWeight) ?? block.weight ?? 0;
+
+    return (
+      <View key={side} style={styles.uniSideInputRow}>
+        <View style={styles.sideBadge}>
+          <Text style={styles.sideBadgeText}>{isLeft ? 'Izq' : 'Der'}</Text>
+        </View>
+        <TextInput
+          style={styles.repsInput}
+          placeholder="reps"
+          placeholderTextColor={GymTheme.textFaint}
+          keyboardType="number-pad"
+          value={sideReps}
+          onChangeText={setSideReps}
+          onSubmitEditing={() => confirmUnilateralSide(side)}
+          onFocus={onRepsFocus}
+          returnKeyType="done"
+        />
+        <WeightCell weight={sideWeight} editable onSave={updateUpcomingWeight} />
+        <View style={{ flex: 1 }} />
+        <Pressable
+          style={[styles.tick, !sideReps && styles.tickDisabled]}
+          onPress={() => confirmUnilateralSide(side)}
+          disabled={!sideReps}
+          hitSlop={6}>
+          <MaterialCommunityIcons name="check" size={20} color="#06210F" />
+        </Pressable>
+      </View>
+    );
+  };
+
   // --- Bloque no enfocado y no terminado: seleccionable (se puede empezar/seguir) ---
   if (!isCurrent && !done) {
-    const startedSummary = block.sets.length > 0 ? repsSummary(block.sets.map((s) => s.reps)) : null;
+    const startedSummary =
+      block.sets.length > 0 ? formatCollapsedSets(block.sets, isUnilateral) : null;
     return (
       <View style={[styles.card, canFocus ? styles.selectable : styles.waiting]}>
         <View style={styles.headerRow}>
@@ -242,12 +457,13 @@ export function ExerciseBlock({
                 <MaterialCommunityIcons name="plus-circle-outline" size={16} color={GymTheme.primary} />
               ) : null}
               <Text style={styles.selName}>{block.exercise_name}</Text>
+              {isUnilateral ? <Text style={styles.uniTag}>I/D</Text> : null}
             </View>
             <Text style={styles.selMeta}>
               {block.weight != null ? `${block.weight} kg · ` : ''}
               {startedSummary ? `series: ${startedSummary}` : 'Sin empezar'}
             </Text>
-            {ref ? <Text style={styles.refText}>Último: {formatRefSummary(ref)}</Text> : null}
+            {refText ? <Text style={styles.refText}>Último: {refText}</Text> : null}
           </View>
           {canFocus ? (
             <Pressable style={[styles.playBtn, { backgroundColor: exerciseType.color }]} onPress={onFocus} hitSlop={6}>
@@ -266,6 +482,11 @@ export function ExerciseBlock({
   }
 
   const borderColor = isCurrent && !done ? exerciseType.color : GymTheme.border;
+  const displayedCompletedGroups = isUnilateral
+    ? done && inProgressGroup
+      ? groups
+      : completedGroups
+    : [];
 
   return (
     <View style={[styles.card, { borderColor, borderWidth: isCurrent && !done ? 2 : 1 }]}>
@@ -277,6 +498,7 @@ export function ExerciseBlock({
               <MaterialCommunityIcons name="plus-circle-outline" size={16} color={GymTheme.primary} />
             ) : null}
             <Text style={styles.name}>{block.exercise_name}</Text>
+            {isUnilateral ? <Text style={styles.uniTag}>I/D</Text> : null}
           </View>
           {(block.start_ts || block.end_ts) && (
             <Text style={styles.times}>
@@ -329,7 +551,53 @@ export function ExerciseBlock({
           // Colapsado: una sola línea limpia
           <View style={styles.collapsed}>
             <MaterialCommunityIcons name="check-circle" size={18} color={exerciseType.color} />
-            <Text style={styles.collapsedReps}>{repsSummary(block.sets.map((s) => s.reps))}</Text>
+            <Text style={styles.collapsedReps}>{formatCollapsedSets(block.sets, isUnilateral)}</Text>
+          </View>
+        ) : isUnilateral ? (
+          <View style={styles.setsWrap}>
+            {displayedCompletedGroups.map((g) => renderUnilateralGroup(g.setIndex, g.items))}
+
+            {isCurrent && !done && inProgressGroup == null && block.sets.length > 0 ? (
+              <RestClock
+                sinceTs={block.sets[block.sets.length - 1].ts}
+                color={exerciseType.color}
+                dimColor={exerciseType.dimColor}
+              />
+            ) : null}
+
+            {isCurrent && !done ? (
+              <View style={styles.uniSetBox}>
+                <View style={styles.uniSetHeader}>
+                  <Text style={styles.uniSetTitle}>Serie {currentSetIndex}</Text>
+                  {inProgressGroup?.items[0]?.rest_seconds != null ? (
+                    <View style={[styles.setRestPill, { backgroundColor: exerciseType.dimColor }]}>
+                      <Text style={[styles.setRestText, { color: exerciseType.color }]}>
+                        {formatRest(inProgressGroup.items[0].rest_seconds)}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                {inProgressGroup ? (
+                  (() => {
+                    const confirmed = inProgressGroup.items[0];
+                    const remainingSide: SetSide = confirmed.side === 'left' ? 'right' : 'left';
+                    return (
+                      <>
+                        {renderConfirmedSideRow(confirmed)}
+                        <SideRestClock sinceTs={confirmed.ts} />
+                        {renderSideInputRow(remainingSide)}
+                      </>
+                    );
+                  })()
+                ) : (
+                  <>
+                    {renderSideInputRow('left')}
+                    {renderSideInputRow('right')}
+                  </>
+                )}
+              </View>
+            ) : null}
           </View>
         ) : (
           <View style={styles.setsWrap}>
@@ -387,7 +655,7 @@ export function ExerciseBlock({
                 <WeightCell
                   weight={newSetWeight ?? block.weight ?? 0}
                   editable
-                  onSave={(w) => setNewSetWeight(w)}
+                  onSave={updateUpcomingWeight}
                 />
                 <View style={{ flex: 1 }} />
                 <Pressable
@@ -406,14 +674,22 @@ export function ExerciseBlock({
       )}
 
       {/* Referencia día anterior */}
-      {ref ? <Text style={styles.refText}>Último: {formatRefSummary(ref)}</Text> : null}
+      {refText ? <Text style={styles.refText}>Último: {refText}</Text> : null}
 
       {/* Botones del bloque */}
       <View style={styles.actions}>
         {block.exercise_id != null ? (
-          <Pressable style={styles.iconBtn} onPress={() => onOpenHistory(block.exercise_id!)} hitSlop={6}>
-            <MaterialCommunityIcons name="chart-line" size={20} color={GymTheme.textMuted} />
-          </Pressable>
+          <>
+            <Pressable style={styles.iconBtn} onPress={() => onOpenHistory(block.exercise_id!)} hitSlop={6}>
+              <MaterialCommunityIcons name="chart-line" size={20} color={GymTheme.textMuted} />
+            </Pressable>
+            <Pressable
+              style={styles.iconBtn}
+              onPress={() => onEditExercise(block.exercise_id!, block.id)}
+              hitSlop={6}>
+              <MaterialCommunityIcons name="tune" size={20} color={GymTheme.textMuted} />
+            </Pressable>
+          </>
         ) : null}
 
         <View style={{ flex: 1 }} />
@@ -457,11 +733,6 @@ export function ExerciseBlock({
   );
 }
 
-function formatRefSummary(ref: { weight: number | null; reps: number[] }): string {
-  const w = ref.weight != null ? `${ref.weight}kg: ` : '';
-  return `${w}${repsSummary(ref.reps)}`;
-}
-
 const styles = StyleSheet.create({
   card: {
     backgroundColor: GymTheme.surface,
@@ -480,6 +751,15 @@ const styles = StyleSheet.create({
   name: { color: GymTheme.text, fontSize: 18, fontWeight: '800' },
   selName: { color: GymTheme.text, fontSize: 16, fontWeight: '700' },
   selMeta: { color: GymTheme.textMuted, fontSize: 13, marginTop: 4 },
+  uniTag: {
+    color: GymTheme.textMuted,
+    fontSize: 10,
+    fontWeight: '800',
+    backgroundColor: GymTheme.surfaceElevated,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: Radius.sm,
+  },
   playBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -532,6 +812,39 @@ const styles = StyleSheet.create({
   collapsedReps: { color: GymTheme.text, fontSize: 18, fontWeight: '700', letterSpacing: 1 },
   setsWrap: { gap: Spacing.sm },
   setRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  uniSetBox: {
+    backgroundColor: GymTheme.surfaceAlt,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: GymTheme.border,
+    padding: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  uniSetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  uniSetTitle: { color: GymTheme.textMuted, fontSize: 13, fontWeight: '700' },
+  uniSideInputRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 2 },
+  sideBadge: {
+    backgroundColor: GymTheme.surfaceElevated,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 38,
+    alignItems: 'center',
+  },
+  sideBadgeText: { color: GymTheme.textMuted, fontSize: 12, fontWeight: '800' },
+  sideRestText: {
+    color: GymTheme.textMuted,
+    fontSize: 12,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+    paddingLeft: 46,
+    paddingVertical: 2,
+  },
   newSetRow: {
     flexDirection: 'row',
     alignItems: 'center',

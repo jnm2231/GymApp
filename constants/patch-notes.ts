@@ -30,6 +30,81 @@ export interface VersionNotes {
 /** Ordenadas de más reciente a más antigua. */
 export const PATCH_NOTES: VersionNotes[] = [
   {
+    version: '1.5.0',
+    date: null,
+    summary:
+      'Catálogo unificado de ejercicios con grupos musculares, ejercicios unilaterales, edición en sesión, cronómetro total, histórico en vivo y Strava por ejercicio.',
+    features: [
+      {
+        title: 'Pestaña Ejercicios y catálogo unificado',
+        detail:
+          'La pestaña Histórico pasa a ser Ejercicios, reuniendo creación, búsqueda, ordenación (A–Z / Z–A, más realizados, mayor 1RM, por músculo y por día) y edición en un mismo lugar.',
+      },
+      {
+        title: 'Grupos musculares personalizables',
+        detail:
+          'Clasifica los ejercicios por grupo muscular con 13 grupos por defecto y opción de crear o eliminar tus propios grupos. Los ejercicios sin clasificar aparecen en «Sin definir».',
+      },
+      {
+        title: 'Ejercicios unilaterales (Izquierda / Derecha)',
+        detail:
+          'Activa el modo unilateral en Musculación, Corporal y Aguante para registrar cada lado con su peso y repeticiones en cualquier orden, cronómetro discreto entre lados, histórico y 1RM medio.',
+      },
+      {
+        title: 'Edición del entrenamiento en curso y lista arrastrable',
+        detail:
+          'Reordena los ejercicios seleccionados arrastrando en la pantalla del día y edita el entrenamiento directamente desde la cabecera de la sesión sin perder las series ya completadas.',
+      },
+      {
+        title: 'Edición de ejercicios durante la sesión',
+        detail:
+          'Modifica el nombre, el grupo muscular o pasa un ejercicio a unilateral sin salir del entrenamiento en curso, desdoblando las series ya registradas si es necesario.',
+      },
+      {
+        title: 'Cronómetro de duración total del entrenamiento',
+        detail:
+          'Muestra el tiempo transcurrido en formato MM:SS junto al nombre del día, sincronizado con la marca de inicio aunque minimices, pauses o bloquees el teléfono.',
+      },
+      {
+        title: 'Persistencia del peso entre series',
+        detail:
+          'Al cambiar el peso de una serie, el nuevo valor pasa automáticamente como predeterminado para las siguientes series sin alterar las ya registradas ni la plantilla.',
+      },
+      {
+        title: 'Pesos variables en la referencia anterior',
+        detail:
+          'El resumen «Último» muestra individualmente el peso y las repeticiones reales de cada serie cuando variaste la carga en la sesión anterior.',
+      },
+      {
+        title: 'Histórico en vivo durante la sesión',
+        detail:
+          'Al marcar un ejercicio como Terminado y consultar su detalle desde la sesión en curso, aparece diferenciado en verde en la gráfica y en la lista hasta que finalices el día.',
+      },
+      {
+        title: 'Strava vinculado a ejercicios',
+        detail:
+          'Asigna cada deporte de Strava a un ejercicio de cardio. Al importar una actividad, GymApp crea o reutiliza un día con el nombre de ese ejercicio.',
+      },
+    ],
+    fixes: [
+      {
+        title: 'Compilación nativa de notificaciones de cronómetro',
+        detail:
+          'Configurada la compilación desde fuente de expo-notifications para que Gradle incluya el cronómetro nativo del cuerpo de la notificación Android, esperando los canales antes de mostrarla.',
+      },
+      {
+        title: 'Integridad del histórico al eliminar ejercicios',
+        detail:
+          'Los ejercicios con sesiones registradas usan borrado lógico para conservar intactos sus registros, gráficas y navegación histórica.',
+      },
+      {
+        title: 'Carreras en el histórico del ejercicio',
+        detail:
+          'Las actividades importadas de Strava aparecen como registros del ejercicio elegido y muestran ritmo medio en min/km y distancia con dos decimales (sin kcal).',
+      },
+    ],
+  },
+  {
     version: '1.4.0',
     date: '2026-09-27',
     summary: 'Conexión con Strava y controles más fluidos.',
@@ -390,4 +465,4 @@ export const PATCH_NOTES: VersionNotes[] = [
 ];
 
 /** Versión más reciente (la primera de la lista). */
-export const CURRENT_VERSION = PATCH_NOTES[0]?.version ?? '1.4.0';
+export const CURRENT_VERSION = PATCH_NOTES[0]?.version ?? '1.4.1';

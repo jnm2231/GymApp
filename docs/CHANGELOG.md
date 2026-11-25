@@ -10,6 +10,58 @@ publicar una versión.
 
 ---
 
+## v1.5.0 — en desarrollo
+
+### Nuevas funcionalidades
+- **Pestaña Ejercicios y catálogo unificado.** La pestaña Histórico pasa a ser
+  **Ejercicios**, integrando creación (`+ Nuevo`), búsqueda, ordenación (`Nombre`
+  A–Z / Z–A, `Más realizados`, `Mayor 1RM`, `Por músculo` y `Por día`) y edición
+  en una sola vista, retirando el catálogo duplicado de Ajustes.
+- **Grupos musculares personalizables.** Clasificación por grupo muscular con 13
+  grupos por defecto y posibilidad de crear o eliminar grupos personalizados. Los
+  ejercicios sin grupo se agrupan en «Sin definir».
+- **Ejercicios unilaterales (Izquierda / Derecha).** Soporte completo en
+  Musculación, Corporal y Aguante para registrar cada lado en cualquier orden,
+  cronómetro discreto entre lados, herencia de peso entre lados y series,
+  colapso `I/D` y cálculo de 1RM promediando ambos lados.
+  - *Modelo de datos:* esquema v11 (`muscle_groups`, columnas en `exercises`,
+    `session_exercises` y `sets`, y copia de seguridad actualizada).
+- **Edición del entrenamiento en curso y lista arrastrable.** Nueva caja
+  arrastrable para reordenar los ejercicios seleccionados al crear o editar un
+  día, accesible también desde la cabecera de la sesión activa sincronizando
+  plantilla y sesión sin perder lo ya completado.
+- **Edición de ejercicios durante la sesión.** Permite editar nombre, grupo
+  muscular y pasar a unilateral desde la sesión activa (desdoblando las series
+  ya realizadas si procede).
+- **Cronómetro total de entrenamiento.** Muestra el tiempo transcurrido en
+  formato `MM:SS` junto al nombre del día a partir de `start_ts`.
+- **Persistencia del peso entre series.** El último peso modificado pasa a ser
+  el predeterminado de las siguientes series/lados sin modificar las ya guardadas
+  ni la plantilla.
+- **Pesos variables del último entrenamiento.** El resumen «Último» muestra
+  individualmente peso y repeticiones de cada serie cuando hubo variación.
+- **Histórico en vivo durante la sesión.** Al terminar un ejercicio dentro de la
+  sesión y abrir su detalle desde ella, se muestra diferenciado en verde en la
+  gráfica y en la lista hasta finalizar el entrenamiento.
+- **Strava vinculado a ejercicios.** Cada deporte se asigna a un ejercicio de
+  cardio. Al importar una actividad, GymApp crea o reutiliza un día con el mismo
+  nombre y registra la actividad como realización de ese ejercicio.
+
+### Solución de errores
+- **Compilación nativa de notificaciones de cronómetro.** Añadido
+  `buildFromSource` para `expo-notifications` en `package.json` (evitando el
+  `.aar` precompilado de `local-maven-repo`), lectura segura de
+  `_gymTimerStartedAt`, visibilidad pública en pantalla bloqueada y espera
+  secuencial al crear canales.
+- **Integridad del histórico al eliminar ejercicios.** Los ejercicios con
+  sesiones registradas se archivan (`archived_at`) en lugar de perder su enlace
+  histórico.
+- **Carreras en el histórico del ejercicio.** Las actividades importadas se
+  incluyen en el histórico del ejercicio, con ritmo medio en min/km, distancia
+  con dos decimales y sin mostrar kcal.
+
+---
+
 ## v1.4.0 — 2026-09-27
 
 ### Nuevas funcionalidades

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, G, Line, Polyline, Text as SvgText } from 'react-native-svg';
 
 import { GymTheme } from '@/constants/gym-theme';
 
 export interface ChartPoint {
   value: number;
   label: string; // etiqueta del eje X (fecha corta)
+  highlightColor?: string;
   tooltip?: {
     title: string;
     lines: string[];
@@ -85,9 +86,10 @@ export function LineChart({
   const step = Math.ceil(points.length / maxLabels);
 
   const selected = activeIndex == null ? null : points[activeIndex];
+  const activeColor = selected?.highlightColor ?? color;
   const tooltipWidth = Math.min(
     width - 16,
-    Math.max(138, Math.min(190, 22 + Math.max(
+    Math.max(138, Math.min(230, 22 + Math.max(
       selected?.tooltip?.title.length ?? 0,
       ...(selected?.tooltip?.lines.map((line) => line.length) ?? [0])
     ) * 5.6))
@@ -165,18 +167,70 @@ export function LineChart({
           y1={padT}
           x2={xAt(activeIndex)}
           y2={padT + innerH}
-          stroke={color}
+          stroke={activeColor}
           strokeWidth={1}
           strokeDasharray="4 3"
           opacity={0.7}
         />
       ) : null}
 
-      {points.map((p, i) => (
-        <Circle key={`c${i}`} cx={xAt(i)} cy={yAt(p.value)} r={activeIndex === i ? 6 : 3.5}
-          fill={activeIndex === i ? GymTheme.surface : color}
-          stroke={activeIndex === i ? color : undefined} strokeWidth={activeIndex === i ? 2 : 0} />
-      ))}
+      {points.map((p, i) => {
+        const isSelected = activeIndex === i;
+        const pointColor = p.highlightColor ?? color;
+        if (isSelected) {
+          return (
+            <G key={`c${i}`}>
+              {p.highlightColor ? (
+                <Circle
+                  cx={xAt(i)}
+                  cy={yAt(p.value)}
+                  r={9}
+                  fill={p.highlightColor}
+                  opacity={0.22}
+                />
+              ) : null}
+              <Circle
+                cx={xAt(i)}
+                cy={yAt(p.value)}
+                r={6}
+                fill={GymTheme.surface}
+                stroke={pointColor}
+                strokeWidth={2}
+              />
+            </G>
+          );
+        }
+        if (p.highlightColor) {
+          return (
+            <G key={`c${i}`}>
+              <Circle
+                cx={xAt(i)}
+                cy={yAt(p.value)}
+                r={7.5}
+                fill={p.highlightColor}
+                opacity={0.22}
+              />
+              <Circle
+                cx={xAt(i)}
+                cy={yAt(p.value)}
+                r={4.5}
+                fill={p.highlightColor}
+                stroke={GymTheme.surface}
+                strokeWidth={1.5}
+              />
+            </G>
+          );
+        }
+        return (
+          <Circle
+            key={`c${i}`}
+            cx={xAt(i)}
+            cy={yAt(p.value)}
+            r={3.5}
+            fill={color}
+          />
+        );
+      })}
 
       {points.map((p, i) =>
         i % step === 0 || i === points.length - 1 ? (
@@ -197,10 +251,18 @@ export function LineChart({
         width: tooltipWidth,
         left: tooltipLeft,
         top: tooltipTop,
+        borderColor: selected.highlightColor ?? GymTheme.primaryDim,
         opacity: fade,
         transform: [{ translateY: fade.interpolate({ inputRange: [0, 1], outputRange: [4, 0] }) }],
       }]}>
-        <Text numberOfLines={1} style={styles.tooltipTitle}>{selected.tooltip.title}</Text>
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.tooltipTitle,
+            selected.highlightColor ? { color: selected.highlightColor } : null,
+          ]}>
+          {selected.tooltip.title}
+        </Text>
         {selected.tooltip.lines.map((line, index) => <Text numberOfLines={1} key={index} style={styles.tooltipLine}>{line}</Text>)}
       </Animated.View>
     ) : null}

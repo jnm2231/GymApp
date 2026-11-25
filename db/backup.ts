@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { SCHEMA_VERSION } from './schema';
+import { SCHEMA_VERSION, seedDefaultMuscleGroups } from './schema.ts';
+import { reconcileAllImportedStravaActivities, resolveLegacyStravaExerciseId } from './strava.ts';
 
 /**
  * Tablas incluidas en la copia de seguridad.
@@ -9,6 +10,7 @@ import { SCHEMA_VERSION } from './schema';
 const BACKUP_TABLES = [
   'settings',
   'body_measurements',
+  'muscle_groups',
   'exercises',
   'days',
   'day_exercises',
@@ -72,6 +74,16 @@ export async function restoreBackup(db: SQLiteDatabase, data: unknown): Promise<
     for (const t of BACKUP_TABLES) {
       const rows = data.tables[t] ?? [];
       for (const row of rows) {
+        if (t === 'strava_mappings' && row.exercise_id == null) {
+          const exerciseId = await resolveLegacyStravaExerciseId(db, Number(row.day_id));
+          if (exerciseId != null) {
+            await db.runAsync(
+              'INSERT INTO strava_mappings (sport_type, exercise_id) VALUES (?, ?)',
+              [String(row.sport_type), exerciseId]
+            );
+          }
+          continue;
+        }
         const cols = Object.keys(row);
         if (cols.length === 0) continue;
         const placeholders = cols.map(() => '?').join(', ');
@@ -81,6 +93,13 @@ export async function restoreBackup(db: SQLiteDatabase, data: unknown): Promise<
           values
         );
       }
+    }
+
+    const mgCount = await db.getFirstAsync<{ total: number }>(
+      'SELECT COUNT(*) AS total FROM muscle_groups'
+    );
+    if ((mgCount?.total ?? 0) === 0) {
+      await seedDefaultMuscleGroups(db);
     }
 
     await db.runAsync("DELETE FROM settings WHERE key LIKE 'strava_%'");
@@ -115,4 +134,5 @@ export async function restoreBackup(db: SQLiteDatabase, data: unknown): Promise<
       "UPDATE sessions SET day_type = 'calisthenics' WHERE day_type = 'hold'"
     );
   });
+  await reconcileAllImportedStravaActivities(db);
 }

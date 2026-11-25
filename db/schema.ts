@@ -1,12 +1,39 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { reconcileAllImportedStravaActivities, resolveLegacyStravaExerciseId } from './strava.ts';
 
 /**
  * Versión del esquema. Se guarda con PRAGMA user_version para futuras migraciones.
  */
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 11;
+
+export const DEFAULT_MUSCLE_GROUPS = [
+  'Pecho',
+  'Espalda',
+  'Hombros',
+  'Bíceps',
+  'Tríceps',
+  'Antebrazo',
+  'Cuádriceps',
+  'Isquiotibiales',
+  'Glúteos',
+  'Gemelos',
+  'Abdomen/Core',
+  'Aductores/Abductores',
+  'Cuerpo completo',
+] as const;
+
+export async function seedDefaultMuscleGroups(db: SQLiteDatabase): Promise<void> {
+  const now = Date.now();
+  for (const name of DEFAULT_MUSCLE_GROUPS) {
+    await db.runAsync('INSERT OR IGNORE INTO muscle_groups (name, created_at) VALUES (?, ?)', [
+      name,
+      now,
+    ]);
+  }
+}
 
 /**
- * Definición de tablas (Paso 1).
+ * Definición de tablas.
  *
  * Decisiones de diseño clave:
  * - El PESO tiene un valor por defecto GLOBAL por ejercicio dentro de una sesión
@@ -16,6 +43,9 @@ export const SCHEMA_VERSION = 9;
  * - Cada serie guarda su timestamp (`ts`) y el descanso calculado respecto a la
  *   serie inmediatamente anterior (`rest_seconds`). La primera serie no tiene
  *   descanso (NULL).
+ * - En ejercicios unilaterales (`is_unilateral = 1`), cada serie (`set_index`)
+ *   agrupa los lados `left` y `right` con `side_order` (1 o 2) y
+ *   `side_rest_seconds` entre ambos lados.
  * - `es_corporal` vive en el catálogo (`exercises`) y se "fotografía" en cada
  *   `session_exercises` para que el histórico no cambie si luego se edita el
  *   catálogo. Para ejercicios corporales, el 1RM usa (peso_usuario + lastre).
@@ -27,15 +57,25 @@ const CREATE_TABLES = `
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 
+-- Grupos musculares personalizables para clasificar ejercicios
+CREATE TABLE IF NOT EXISTS muscle_groups (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+  created_at INTEGER NOT NULL
+);
+
 -- Catálogo global de ejercicios
 CREATE TABLE IF NOT EXISTS exercises (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  name        TEXT    NOT NULL UNIQUE,
-  es_corporal INTEGER NOT NULL DEFAULT 0,
-  exercise_type TEXT NOT NULL DEFAULT 'strength',
-  cardio_tracking TEXT NOT NULL DEFAULT 'both',
-  tracking_mode TEXT NOT NULL DEFAULT 'reps',
-  created_at  INTEGER NOT NULL
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  name            TEXT    NOT NULL UNIQUE,
+  es_corporal     INTEGER NOT NULL DEFAULT 0,
+  exercise_type   TEXT    NOT NULL DEFAULT 'strength',
+  cardio_tracking TEXT    NOT NULL DEFAULT 'both',
+  tracking_mode   TEXT    NOT NULL DEFAULT 'reps',
+  is_unilateral   INTEGER NOT NULL DEFAULT 0,
+  muscle_group_id INTEGER REFERENCES muscle_groups(id) ON DELETE SET NULL,
+  archived_at     INTEGER,
+  created_at      INTEGER NOT NULL
 );
 
 -- Plantillas de "tipo de día" (Pecho, Espalda, Pierna...)
@@ -71,21 +111,23 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 -- Bloque de ejercicio dentro de una sesión (peso global aquí)
 CREATE TABLE IF NOT EXISTS session_exercises (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  session_id    INTEGER NOT NULL,
-  exercise_id   INTEGER,
-  exercise_name TEXT    NOT NULL,
-  es_corporal   INTEGER NOT NULL DEFAULT 0,
-  weight        REAL,
-  position      INTEGER NOT NULL,
-  is_additional INTEGER NOT NULL DEFAULT 0,
-  start_ts      INTEGER,
-  end_ts        INTEGER,
-  status        TEXT    NOT NULL DEFAULT 'pending',
-  exercise_type TEXT    NOT NULL DEFAULT 'strength',
-  cardio_tracking TEXT  NOT NULL DEFAULT 'both',
-  tracking_mode TEXT    NOT NULL DEFAULT 'reps',
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  session_id       INTEGER NOT NULL,
+  exercise_id      INTEGER,
+  exercise_name    TEXT    NOT NULL,
+  es_corporal      INTEGER NOT NULL DEFAULT 0,
+  weight           REAL,
+  position         INTEGER NOT NULL,
+  is_additional    INTEGER NOT NULL DEFAULT 0,
+  start_ts         INTEGER,
+  end_ts           INTEGER,
+  status           TEXT    NOT NULL DEFAULT 'pending',
+  exercise_type    TEXT    NOT NULL DEFAULT 'strength',
+  cardio_tracking  TEXT    NOT NULL DEFAULT 'both',
+  tracking_mode    TEXT    NOT NULL DEFAULT 'reps',
   timer_started_ts INTEGER,
+  is_unilateral    INTEGER NOT NULL DEFAULT 0,
+  timer_side       TEXT,
   FOREIGN KEY (session_id)  REFERENCES sessions(id)  ON DELETE CASCADE,
   FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE SET NULL
 );
@@ -101,6 +143,9 @@ CREATE TABLE IF NOT EXISTS sets (
   rest_seconds        INTEGER,
   weight              REAL,
   duration_seconds    INTEGER,
+  side                TEXT,
+  side_order          INTEGER,
+  side_rest_seconds   INTEGER,
   FOREIGN KEY (session_exercise_id) REFERENCES session_exercises(id) ON DELETE CASCADE
 );
 
@@ -128,10 +173,10 @@ CREATE TABLE IF NOT EXISTS cardio_entries (
   FOREIGN KEY (session_exercise_id) REFERENCES session_exercises(id) ON DELETE CASCADE
 );
 
--- Actividades externas y su asignación a plantillas de cardio.
+-- Actividades externas y su asignación a ejercicios de cardio.
 CREATE TABLE IF NOT EXISTS strava_mappings (
   sport_type TEXT PRIMARY KEY,
-  day_id INTEGER NOT NULL REFERENCES days(id) ON DELETE CASCADE
+  exercise_id INTEGER NOT NULL REFERENCES exercises(id) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS strava_activities (
   activity_id TEXT PRIMARY KEY,
@@ -153,14 +198,14 @@ CREATE TABLE IF NOT EXISTS dev_notes (
 );
 
 -- Índices para consultas frecuentes (histórico, referencia día anterior...)
-CREATE INDEX IF NOT EXISTS idx_day_exercises_day      ON day_exercises(day_id);
-CREATE INDEX IF NOT EXISTS idx_sess_ex_session         ON session_exercises(session_id);
-CREATE INDEX IF NOT EXISTS idx_sess_ex_exercise        ON session_exercises(exercise_id);
-CREATE INDEX IF NOT EXISTS idx_sets_sess_ex            ON sets(session_exercise_id);
-CREATE INDEX IF NOT EXISTS idx_sessions_status         ON sessions(status);
-CREATE INDEX IF NOT EXISTS idx_sessions_start          ON sessions(start_ts);
-CREATE INDEX IF NOT EXISTS idx_body_measurements_date  ON body_measurements(recorded_at);
-CREATE INDEX IF NOT EXISTS idx_cardio_entries_exercise ON cardio_entries(session_exercise_id);
+CREATE INDEX IF NOT EXISTS idx_day_exercises_day         ON day_exercises(day_id);
+CREATE INDEX IF NOT EXISTS idx_sess_ex_session           ON session_exercises(session_id);
+CREATE INDEX IF NOT EXISTS idx_sess_ex_exercise          ON session_exercises(exercise_id);
+CREATE INDEX IF NOT EXISTS idx_sets_sess_ex              ON sets(session_exercise_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_status           ON sessions(status);
+CREATE INDEX IF NOT EXISTS idx_sessions_start            ON sessions(start_ts);
+CREATE INDEX IF NOT EXISTS idx_body_measurements_date    ON body_measurements(recorded_at);
+CREATE INDEX IF NOT EXISTS idx_cardio_entries_exercise   ON cardio_entries(session_exercise_id);
 CREATE INDEX IF NOT EXISTS idx_strava_activities_pending ON strava_activities(session_id, sport_type);
 `;
 
@@ -183,7 +228,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
     if (!setsCols.some((c) => c.name === 'weight')) {
       await db.execAsync('ALTER TABLE sets ADD COLUMN weight REAL');
     }
-
   }
 
   if (current < 4) {
@@ -243,9 +287,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
       await db.execAsync('ALTER TABLE sets ADD COLUMN duration_seconds INTEGER');
     }
 
-    // El antiguo indicador "corporal" pasa a ser una categoría de ejercicio.
-    // Los snapshots históricos se actualizan también para que se muestren con
-    // el nuevo nombre, sin alterar pesos, series ni cálculos previos.
     await db.execAsync(
       "UPDATE exercises SET exercise_type = 'calisthenics' WHERE es_corporal = 1;" +
       "UPDATE session_exercises SET exercise_type = 'calisthenics' WHERE es_corporal = 1;"
@@ -253,9 +294,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
   }
 
   if (current < 6) {
-    // Aguante deja de ser un modo secundario de los ejercicios corporales y
-    // pasa a ser un cuarto tipo independiente. Se conservan intactas todas las
-    // series, duraciones, descansos y marcas de tiempo ya registradas.
     await db.execAsync(
       "UPDATE exercises SET exercise_type = 'hold', es_corporal = 0 WHERE tracking_mode = 'hold';" +
       "UPDATE session_exercises SET exercise_type = 'hold', es_corporal = 0 WHERE tracking_mode = 'hold';"
@@ -263,9 +301,6 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
   }
 
   if (current < 7) {
-    // Cardio deja de dividirse por métricas: el tiempo se cronometra siempre
-    // y la distancia es un dato opcional. La columna se conserva para que las
-    // copias antiguas sigan siendo compatibles.
     await db.execAsync(
       "UPDATE exercises SET cardio_tracking = 'both' WHERE exercise_type = 'cardio';" +
       "UPDATE session_exercises SET cardio_tracking = 'both' WHERE exercise_type = 'cardio';"
@@ -273,12 +308,86 @@ export async function initDatabase(db: SQLiteDatabase): Promise<void> {
   }
 
   if (current < 8) {
-    // Aguante continúa como tipo de ejercicio, pero deja de existir como tipo
-    // de día. Las plantillas y sesiones antiguas se conservan como Calistenia.
     await db.execAsync(
       "UPDATE days SET training_type = 'calisthenics' WHERE training_type = 'hold';" +
       "UPDATE sessions SET day_type = 'calisthenics' WHERE day_type = 'hold';"
     );
+  }
+
+  if (current < 10) {
+    const mappingCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(strava_mappings)');
+    if (mappingCols.some((column) => column.name === 'day_id')) {
+      const legacy = await db.getAllAsync<{ sport_type: string; day_id: number }>(
+        'SELECT sport_type, day_id FROM strava_mappings'
+      );
+      const resolved: { sportType: string; exerciseId: number }[] = [];
+      for (const mapping of legacy) {
+        const exerciseId = await resolveLegacyStravaExerciseId(db, mapping.day_id);
+        if (exerciseId != null) resolved.push({ sportType: mapping.sport_type, exerciseId });
+      }
+      await db.withTransactionAsync(async () => {
+        await db.execAsync(
+          `CREATE TABLE strava_mappings_v10 (
+             sport_type TEXT PRIMARY KEY,
+             exercise_id INTEGER NOT NULL REFERENCES exercises(id) ON DELETE CASCADE
+           )`
+        );
+        for (const mapping of resolved) {
+          await db.runAsync(
+            'INSERT INTO strava_mappings_v10 (sport_type, exercise_id) VALUES (?, ?)',
+            [mapping.sportType, mapping.exerciseId]
+          );
+        }
+        await db.execAsync('DROP TABLE strava_mappings');
+        await db.execAsync('ALTER TABLE strava_mappings_v10 RENAME TO strava_mappings');
+      });
+    }
+    await reconcileAllImportedStravaActivities(db);
+  }
+
+  if (current < 11) {
+    const exerciseCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(exercises)');
+    if (!exerciseCols.some((c) => c.name === 'is_unilateral')) {
+      await db.execAsync('ALTER TABLE exercises ADD COLUMN is_unilateral INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!exerciseCols.some((c) => c.name === 'muscle_group_id')) {
+      await db.execAsync(
+        'ALTER TABLE exercises ADD COLUMN muscle_group_id INTEGER REFERENCES muscle_groups(id) ON DELETE SET NULL'
+      );
+    }
+    if (!exerciseCols.some((c) => c.name === 'archived_at')) {
+      await db.execAsync('ALTER TABLE exercises ADD COLUMN archived_at INTEGER');
+    }
+
+    const sessionExerciseCols = await db.getAllAsync<{ name: string }>(
+      'PRAGMA table_info(session_exercises)'
+    );
+    if (!sessionExerciseCols.some((c) => c.name === 'is_unilateral')) {
+      await db.execAsync(
+        'ALTER TABLE session_exercises ADD COLUMN is_unilateral INTEGER NOT NULL DEFAULT 0'
+      );
+    }
+    if (!sessionExerciseCols.some((c) => c.name === 'timer_side')) {
+      await db.execAsync('ALTER TABLE session_exercises ADD COLUMN timer_side TEXT');
+    }
+
+    const setsCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(sets)');
+    if (!setsCols.some((c) => c.name === 'side')) {
+      await db.execAsync('ALTER TABLE sets ADD COLUMN side TEXT');
+    }
+    if (!setsCols.some((c) => c.name === 'side_order')) {
+      await db.execAsync('ALTER TABLE sets ADD COLUMN side_order INTEGER');
+    }
+    if (!setsCols.some((c) => c.name === 'side_rest_seconds')) {
+      await db.execAsync('ALTER TABLE sets ADD COLUMN side_rest_seconds INTEGER');
+    }
+
+    await db.execAsync(
+      'CREATE INDEX IF NOT EXISTS idx_exercises_muscle_group ON exercises(muscle_group_id);' +
+      'CREATE INDEX IF NOT EXISTS idx_exercises_archived ON exercises(archived_at);'
+    );
+
+    await seedDefaultMuscleGroups(db);
   }
 
   if (current < SCHEMA_VERSION) await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);

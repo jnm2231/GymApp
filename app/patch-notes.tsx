@@ -9,8 +9,8 @@ const MONTHS = [
   'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
 ];
 
-function formatDate(date: string | null): string {
-  if (!date) return 'Primera versión';
+function formatDate(date: string | null, version: string): string {
+  if (!date) return version === '1.0.0' ? 'Primera versión' : 'En desarrollo';
   const [y, m, d] = date.split('-').map(Number);
   if (!y || !m || !d) return date;
   return `${d} de ${MONTHS[m - 1]} de ${y}`;
@@ -67,7 +67,7 @@ export default function PatchNotesScreen() {
                 </Text>
               </View>
               {isCurrent ? <Text style={styles.currentTag}>Versión actual</Text> : null}
-              <Text style={styles.date}>{formatDate(v.date)}</Text>
+              <Text style={styles.date}>{formatDate(v.date, v.version)}</Text>
             </View>
 
             {v.summary ? <Text style={styles.summary}>{v.summary}</Text> : null}

@@ -5,6 +5,13 @@ export type TrainingType = 'strength' | 'cardio' | 'calisthenics' | 'hold';
 // Desde v7 todo cardio cronometra el tiempo y admite distancia opcional.
 export type CardioTracking = 'both';
 export type ExerciseTracking = 'reps' | 'hold';
+export type SetSide = 'left' | 'right';
+
+export interface MuscleGroup {
+  id: number;
+  name: string;
+  created_at: number;
+}
 
 export interface Exercise {
   id: number;
@@ -13,7 +20,14 @@ export interface Exercise {
   exercise_type: TrainingType;
   cardio_tracking: CardioTracking;
   tracking_mode: ExerciseTracking;
+  is_unilateral: number; // 0 = bilateral, 1 = unilateral (izq/der)
+  muscle_group_id: number | null;
+  archived_at: number | null;
   created_at: number;
+}
+
+export interface ExerciseWithMuscleGroup extends Exercise {
+  muscle_group_name: string | null;
 }
 
 export interface Day {
@@ -61,6 +75,8 @@ export interface SessionExercise {
   cardio_tracking: CardioTracking;
   tracking_mode: ExerciseTracking;
   timer_started_ts: number | null;
+  is_unilateral: number;
+  timer_side: SetSide | null;
 }
 
 export interface ExerciseSet {
@@ -69,9 +85,12 @@ export interface ExerciseSet {
   set_index: number; // 1, 2, 3...
   reps: number;
   ts: number; // ms al confirmar el tick
-  rest_seconds: number | null; // descanso respecto a la serie anterior (NULL en la 1ª)
+  rest_seconds: number | null; // descanso respecto a la serie anterior (NULL en la 1ª y en el 2º lado de una serie unilateral)
   weight: number | null; // peso de ESTA serie (kg). NULL = hereda el peso global del ejercicio.
   duration_seconds: number | null; // duración de una serie de aguante; NULL para repeticiones
+  side: SetSide | null; // 'left' | 'right' para ejercicios unilaterales; NULL para bilaterales
+  side_order: number | null; // 1 = primer lado completado, 2 = segundo lado completado
+  side_rest_seconds: number | null; // descanso entre el primer y segundo lado dentro de una serie unilateral
 }
 
 export interface CardioEntry {

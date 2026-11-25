@@ -29,6 +29,7 @@ export interface CalendarDayDetailExercise {
   exercise_type: TrainingType;
   cardio_tracking: CardioTracking;
   tracking_mode: ExerciseTracking;
+  is_unilateral: number;
   cardio_entry: CardioEntry | null;
 }
 
@@ -105,6 +106,7 @@ export async function getDayDetail(
     >(
       `SELECT se.id AS session_exercise_id, se.exercise_id, se.exercise_name, se.es_corporal,
               se.weight, se.start_ts, se.exercise_type, se.cardio_tracking, se.tracking_mode,
+              se.is_unilateral,
               COALESCE((SELECT MAX(activity_ts) FROM (
                           SELECT st.ts AS activity_ts FROM sets st
                           WHERE st.session_exercise_id = se.id
@@ -120,7 +122,7 @@ export async function getDayDetail(
     const withSets: CalendarDayDetailExercise[] = [];
     for (const e of exercises) {
       const sets = await db.getAllAsync<ExerciseSet>(
-        'SELECT * FROM sets WHERE session_exercise_id = ? ORDER BY set_index ASC',
+        'SELECT * FROM sets WHERE session_exercise_id = ? ORDER BY set_index ASC, COALESCE(side_order, 0) ASC, id ASC',
         [e.session_exercise_id]
       );
       const cardioEntry = await db.getFirstAsync<CardioEntry>(

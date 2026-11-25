@@ -1,8 +1,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, type Href } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useAlert } from '@/components/gym/alert';
 import { CardioExerciseBlock } from '@/components/gym/cardio-exercise-block';
@@ -24,7 +24,7 @@ import {
 } from '@/db/sessions';
 import type { DayDurationEstimate } from '@/db/sessions';
 import type { Exercise, Session, SessionExerciseWithSets } from '@/db/types';
-import { formatDuration, formatHM } from '@/lib/format';
+import { formatDuration, formatElapsedClock, formatHM } from '@/lib/format';
 import { useKeyboardHeight } from '@/lib/use-keyboard';
 import { getDayType, getTrainingType } from '@/lib/training-types';
 import {
@@ -32,6 +32,37 @@ import {
   cancelWorkoutReminder,
   scheduleWorkoutReminder,
 } from '@/lib/workout-notifications';
+
+/** Reloj de duración total de la sesión (MM:SS desde `startTs`, exacto tras minimizar o pausar). */
+function SessionElapsedClock({
+  startTs,
+  color,
+  dimColor,
+}: {
+  startTs: number;
+  color: string;
+  dimColor: string;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setNow(Date.now());
+    });
+    return () => {
+      clearInterval(interval);
+      sub.remove();
+    };
+  }, [startTs]);
+
+  return (
+    <View style={[styles.elapsedPill, { backgroundColor: dimColor }]}>
+      <MaterialCommunityIcons name="clock-outline" size={14} color={color} />
+      <Text style={[styles.elapsedText, { color }]}>{formatElapsedClock(startTs, now)}</Text>
+    </View>
+  );
+}
 
 /**
  * Vista de la sesión activa. Se renderiza DENTRO de la pestaña "Entreno"
@@ -211,11 +242,26 @@ export function SessionView() {
       ex.name,
       ex.es_corporal === 1,
       ex.exercise_type,
-      ex.tracking_mode
+      ex.tracking_mode,
+      ex.is_unilateral === 1
     );
     setPickerOpen(false);
     await load();
   };
+
+  const openExerciseHistory = (exId: number, sessExId?: number) =>
+    router.push({
+      pathname: '/exercise/[id]',
+      params: sessExId != null
+        ? { id: String(exId), activeSessionId: String(session.id), sessionExerciseId: String(sessExId) }
+        : { id: String(exId), activeSessionId: String(session.id) },
+    });
+
+  const openEditExercise = (exId: number, sessExId: number) =>
+    router.push({
+      pathname: '/exercise-form',
+      params: { id: String(exId), sessionExerciseId: String(sessExId) },
+    } as unknown as Href);
 
   return (
     <Screen>
@@ -225,7 +271,14 @@ export function SessionView() {
           <MaterialCommunityIcons name={sessionType.icon} size={22} color={sessionType.color} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.dayName}>{session.day_name}</Text>
+          <View style={styles.dayTitleRow}>
+            <Text style={[styles.dayName, { flexShrink: 1 }]}>{session.day_name}</Text>
+            <SessionElapsedClock
+              startTs={session.start_ts}
+              color={sessionType.color}
+              dimColor={sessionType.dimColor}
+            />
+          </View>
           <Text style={styles.startedAt}>Inicio · {formatHM(session.start_ts)}</Text>
           {durationEstimate ? (
             <Text style={styles.estimate}>
@@ -237,6 +290,19 @@ export function SessionView() {
             <Text style={styles.estimateEmpty}>Sin entrenamientos previos para estimar la duración</Text>
           )}
         </View>
+        {session.day_id != null ? (
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: '/day-form',
+                params: { id: String(session.day_id), sessionId: String(session.id) },
+              })
+            }
+            hitSlop={8}
+            style={styles.headerIcon}>
+            <MaterialCommunityIcons name="pencil-outline" size={22} color={GymTheme.textMuted} />
+          </Pressable>
+        ) : null}
         <Pressable onPress={handleDiscard} hitSlop={8} style={styles.headerIcon}>
           <MaterialCommunityIcons name="trash-can-outline" size={22} color={GymTheme.danger} />
         </Pressable>
@@ -265,6 +331,8 @@ export function SessionView() {
                 isCurrent={b.id === focusedId}
                 sessionId={session.id}
                 onChanged={load}
+                onOpenHistory={(exId) => openExerciseHistory(exId, b.id)}
+                onEditExercise={openEditExercise}
                 onFocus={() => setFocusedId(b.id)}
                 onPostpone={() => setFocusedId(null)}
                 canFocus={focusedId == null}
@@ -275,9 +343,8 @@ export function SessionView() {
                 isCurrent={b.id === focusedId}
                 sessionId={session.id}
                 onChanged={load}
-                onOpenHistory={(exId) =>
-                  router.push({ pathname: '/exercise/[id]', params: { id: String(exId) } })
-                }
+                onOpenHistory={(exId) => openExerciseHistory(exId, b.id)}
+                onEditExercise={openEditExercise}
                 onFocus={() => setFocusedId(b.id)}
                 onPostpone={() => setFocusedId(null)}
                 canFocus={focusedId == null}
@@ -289,7 +356,8 @@ export function SessionView() {
               sessionId={session.id}
               sessionUserWeight={session.user_weight}
               onChanged={load}
-              onOpenHistory={(exId) => router.push({ pathname: '/exercise/[id]', params: { id: String(exId) } })}
+              onOpenHistory={(exId) => openExerciseHistory(exId, b.id)}
+              onEditExercise={openEditExercise}
               onFocus={() => setFocusedId(b.id)}
               onPostpone={() => setFocusedId(null)}
               canFocus={focusedId == null}
@@ -330,16 +398,20 @@ export function SessionView() {
           <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Añadir ejercicio</Text>
             <ScrollView style={{ maxHeight: 360 }}>
-              {catalog.map((ex) => (
-                <Pressable key={ex.id} style={styles.modalRow} onPress={() => pickAdditional(ex)}>
-                  <MaterialCommunityIcons
-                    name={getTrainingType(ex.exercise_type).icon}
-                    size={18}
-                    color={getTrainingType(ex.exercise_type).color}
-                  />
-                  <Text style={styles.modalRowText}>{ex.name}</Text>
-                </Pressable>
-              ))}
+              {catalog.map((ex) => {
+                const t = getTrainingType(ex.exercise_type);
+                return (
+                  <Pressable key={ex.id} style={styles.modalRow} onPress={() => pickAdditional(ex)}>
+                    <MaterialCommunityIcons name={t.icon} size={18} color={t.color} />
+                    <Text style={[styles.modalRowText, { flex: 1 }]}>{ex.name}</Text>
+                    {ex.is_unilateral === 1 ? (
+                      <View style={styles.unilateralTag}>
+                        <Text style={styles.unilateralTagText}>I/D</Text>
+                      </View>
+                    ) : null}
+                  </Pressable>
+                );
+              })}
               {catalog.length === 0 ? (
                 <Text style={styles.modalEmpty}>No hay ejercicios en el catálogo.</Text>
               ) : null}
@@ -371,7 +443,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerIcon: { padding: 4 },
+  dayTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   dayName: { color: GymTheme.text, fontSize: 22, fontWeight: '800' },
+  elapsedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: Radius.pill,
+    flexShrink: 0,
+  },
+  elapsedText: {
+    fontSize: 13,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+    letterSpacing: 0.3,
+  },
   startedAt: { color: GymTheme.textMuted, fontSize: 13, marginTop: 2 },
   estimate: { color: GymTheme.primary, fontSize: 12, fontWeight: '700', marginTop: 3 },
   estimateEmpty: { color: GymTheme.textFaint, fontSize: 11, marginTop: 3 },
@@ -464,5 +552,12 @@ const styles = StyleSheet.create({
     borderBottomColor: GymTheme.border,
   },
   modalRowText: { color: GymTheme.text, fontSize: 16 },
+  unilateralTag: {
+    backgroundColor: GymTheme.surfaceElevated,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  unilateralTagText: { color: GymTheme.textMuted, fontSize: 11, fontWeight: '700' },
   modalEmpty: { color: GymTheme.textFaint, padding: Spacing.lg, textAlign: 'center' },
 });

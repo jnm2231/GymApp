@@ -1,20 +1,26 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import { getDayExercises } from './days';
-import { getUserWeight } from './settings';
+import { getDayExercises, updateDay } from './days.ts';
+import { getUserWeight } from './settings.ts';
 import type {
   CardioEntry,
   Day,
+  Exercise,
   ExerciseSet,
   ExerciseTracking,
   Session,
   SessionExercise,
   SessionExerciseWithSets,
+  SetSide,
   TrainingType,
 } from './types';
 
 export interface DayDurationEstimate {
   averageMs: number;
   sampleSize: number;
+}
+
+export interface SyncSessionResult {
+  preservedRemovedNames: string[];
 }
 
 /** Sesión en curso o pausada (sólo puede haber una a la vez). */
@@ -93,8 +99,8 @@ export async function startSession(db: SQLiteDatabase, dayId: number): Promise<n
       await db.runAsync(
         `INSERT INTO session_exercises
            (session_id, exercise_id, exercise_name, es_corporal, weight, position, is_additional,
-            status, exercise_type, cardio_tracking, tracking_mode)
-         VALUES (?, ?, ?, ?, NULL, ?, 0, 'pending', ?, ?, ?)`,
+            status, exercise_type, cardio_tracking, tracking_mode, is_unilateral, timer_side)
+         VALUES (?, ?, ?, ?, NULL, ?, 0, 'pending', ?, ?, ?, ?, NULL)`,
         [
           sessionId,
           ex.id,
@@ -104,6 +110,7 @@ export async function startSession(db: SQLiteDatabase, dayId: number): Promise<n
           ex.exercise_type,
           ex.cardio_tracking,
           ex.tracking_mode,
+          ex.is_unilateral,
         ]
       );
     }
@@ -116,7 +123,7 @@ export async function getSessionExercises(
   sessionId: number
 ): Promise<SessionExercise[]> {
   return db.getAllAsync<SessionExercise>(
-    'SELECT * FROM session_exercises WHERE session_id = ? ORDER BY position ASC',
+    'SELECT * FROM session_exercises WHERE session_id = ? ORDER BY position ASC, id ASC',
     [sessionId]
   );
 }
@@ -129,7 +136,7 @@ export async function getSessionExercisesWithSets(
   const result: SessionExerciseWithSets[] = [];
   for (const b of blocks) {
     const sets = await db.getAllAsync<ExerciseSet>(
-      'SELECT * FROM sets WHERE session_exercise_id = ? ORDER BY set_index ASC',
+      'SELECT * FROM sets WHERE session_exercise_id = ? ORDER BY set_index ASC, COALESCE(side_order, 0) ASC, id ASC',
       [b.id]
     );
     const cardioEntry = await db.getFirstAsync<CardioEntry>(
@@ -154,9 +161,9 @@ export async function setExerciseWeight(
 }
 
 /**
- * Registra una nueva serie (tick verde). Calcula el descanso respecto a la
- * serie inmediatamente anterior. La primera serie no tiene descanso y fija la
- * hora de inicio del ejercicio.
+ * Registra una nueva serie bilateral (tick verde). Calcula el descanso respecto
+ * a la serie inmediatamente anterior. La primera serie no tiene descanso y fija
+ * la hora de inicio del ejercicio.
  */
 export async function addSet(
   db: SQLiteDatabase,
@@ -166,16 +173,17 @@ export async function addSet(
 ): Promise<ExerciseSet> {
   const now = Date.now();
   const prev = await db.getFirstAsync<ExerciseSet>(
-    'SELECT * FROM sets WHERE session_exercise_id = ? ORDER BY set_index DESC LIMIT 1',
+    'SELECT * FROM sets WHERE session_exercise_id = ? ORDER BY set_index DESC, COALESCE(side_order, 0) DESC, id DESC LIMIT 1',
     [sessionExerciseId]
   );
 
   const setIndex = prev ? prev.set_index + 1 : 1;
-  const rest = prev ? Math.round((now - prev.ts) / 1000) : null;
+  const rest = prev ? Math.max(0, Math.round((now - prev.ts) / 1000)) : null;
 
   const res = await db.runAsync(
-    `INSERT INTO sets (session_exercise_id, set_index, reps, ts, rest_seconds, weight)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO sets
+       (session_exercise_id, set_index, reps, ts, rest_seconds, weight, side, side_order, side_rest_seconds)
+     VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL)`,
     [sessionExerciseId, setIndex, reps, now, rest, weight]
   );
 
@@ -196,7 +204,93 @@ export async function addSet(
     rest_seconds: rest,
     weight,
     duration_seconds: null,
+    side: null,
+    side_order: null,
+    side_rest_seconds: null,
   };
+}
+
+/**
+ * Registra un lado ('left' | 'right') dentro de una serie unilateral.
+ * - El 1.er lado completado toma `side_order = 1` y calcula `rest_seconds`
+ *   respecto al último lado completado de la serie anterior.
+ * - El 2.º lado toma `side_order = 2` y calcula `side_rest_seconds` respecto
+ *   al 1.er lado de esta misma serie.
+ */
+export async function addUnilateralSetSide(
+  db: SQLiteDatabase,
+  sessionExerciseId: number,
+  setIndex: number,
+  side: SetSide,
+  reps: number,
+  weight: number | null = null
+): Promise<ExerciseSet> {
+  let resultSet: ExerciseSet | null = null;
+
+  await db.withTransactionAsync(async () => {
+    const existingInSet = await db.getAllAsync<ExerciseSet>(
+      `SELECT * FROM sets
+        WHERE session_exercise_id = ? AND set_index = ?
+        ORDER BY COALESCE(side_order, 0) ASC, id ASC`,
+      [sessionExerciseId, setIndex]
+    );
+
+    const alreadySameSide = existingInSet.find((item) => item.side === side);
+    if (alreadySameSide) {
+      resultSet = alreadySameSide;
+      return;
+    }
+
+    const now = Date.now();
+    let restSeconds: number | null = null;
+    let sideOrder = 1;
+    let sideRestSeconds: number | null = null;
+
+    if (existingInSet.length === 0) {
+      const prev = await db.getFirstAsync<ExerciseSet>(
+        `SELECT * FROM sets
+          WHERE session_exercise_id = ? AND set_index < ?
+          ORDER BY set_index DESC, COALESCE(side_order, 0) DESC, id DESC LIMIT 1`,
+        [sessionExerciseId, setIndex]
+      );
+      restSeconds = prev ? Math.max(0, Math.round((now - prev.ts) / 1000)) : null;
+      sideOrder = 1;
+      sideRestSeconds = null;
+    } else {
+      const firstSide = existingInSet[0];
+      restSeconds = null;
+      sideOrder = 2;
+      sideRestSeconds = Math.max(0, Math.round((now - firstSide.ts) / 1000));
+    }
+
+    const res = await db.runAsync(
+      `INSERT INTO sets
+         (session_exercise_id, set_index, reps, ts, rest_seconds, weight, side, side_order, side_rest_seconds)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [sessionExerciseId, setIndex, reps, now, restSeconds, weight, side, sideOrder, sideRestSeconds]
+    );
+
+    await db.runAsync(
+      "UPDATE session_exercises SET start_ts = COALESCE(start_ts, ?), status = 'active' WHERE id = ?",
+      [now, sessionExerciseId]
+    );
+
+    resultSet = {
+      id: res.lastInsertRowId,
+      session_exercise_id: sessionExerciseId,
+      set_index: setIndex,
+      reps,
+      ts: now,
+      rest_seconds: restSeconds,
+      weight,
+      duration_seconds: null,
+      side,
+      side_order: sideOrder,
+      side_rest_seconds: sideRestSeconds,
+    };
+  });
+
+  return resultSet!;
 }
 
 /** Edita las repeticiones de una serie SIN tocar timestamps ni descansos. */
@@ -224,17 +318,18 @@ export async function deleteSet(db: SQLiteDatabase, setId: number): Promise<void
   await db.runAsync('DELETE FROM sets WHERE id = ?', [setId]);
 }
 
-/** Inicia el cronómetro de la siguiente serie de aguante. */
+/** Inicia el cronómetro de la siguiente serie de aguante (bilateral o unilateral). */
 export async function startHoldSet(
   db: SQLiteDatabase,
-  sessionExerciseId: number
+  sessionExerciseId: number,
+  side: SetSide | null = null
 ): Promise<number> {
   const now = Date.now();
   await db.runAsync(
     `UPDATE session_exercises
-        SET timer_started_ts = ?, start_ts = COALESCE(start_ts, ?), status = 'active'
+        SET timer_started_ts = ?, timer_side = ?, start_ts = COALESCE(start_ts, ?), status = 'active'
       WHERE id = ? AND timer_started_ts IS NULL`,
-    [now, now, sessionExerciseId]
+    [now, side, now, sessionExerciseId]
   );
   return now;
 }
@@ -246,18 +341,90 @@ export async function finishHoldSet(
 ): Promise<ExerciseSet | null> {
   let created: ExerciseSet | null = null;
   await db.withTransactionAsync(async () => {
-    const block = await db.getFirstAsync<{ timer_started_ts: number | null }>(
-      'SELECT timer_started_ts FROM session_exercises WHERE id = ?',
+    const block = await db.getFirstAsync<{
+      timer_started_ts: number | null;
+      timer_side: SetSide | null;
+      is_unilateral: number;
+    }>(
+      'SELECT timer_started_ts, timer_side, is_unilateral FROM session_exercises WHERE id = ?',
       [sessionExerciseId]
     );
     if (!block?.timer_started_ts) return;
+
+    const now = Date.now();
+    const durationSeconds = Math.max(1, Math.round((now - block.timer_started_ts) / 1000));
+
+    if (block.is_unilateral === 1) {
+      const side: SetSide = block.timer_side ?? 'left';
+      const lastSet = await db.getFirstAsync<ExerciseSet>(
+        `SELECT * FROM sets
+          WHERE session_exercise_id = ?
+          ORDER BY set_index DESC, COALESCE(side_order, 0) DESC, id DESC LIMIT 1`,
+        [sessionExerciseId]
+      );
+
+      let setIndex = lastSet ? lastSet.set_index + 1 : 1;
+      let sideOrder = 1;
+      let restSeconds: number | null = lastSet
+        ? Math.max(0, Math.round((block.timer_started_ts - lastSet.ts) / 1000))
+        : null;
+      let sideRestSeconds: number | null = null;
+
+      if (lastSet) {
+        const currentSetRows = await db.getAllAsync<ExerciseSet>(
+          'SELECT * FROM sets WHERE session_exercise_id = ? AND set_index = ?',
+          [sessionExerciseId, lastSet.set_index]
+        );
+        if (currentSetRows.length === 1 && currentSetRows[0].side !== side) {
+          setIndex = lastSet.set_index;
+          sideOrder = 2;
+          restSeconds = null;
+          sideRestSeconds = Math.max(
+            0,
+            Math.round((block.timer_started_ts - currentSetRows[0].ts) / 1000)
+          );
+        }
+      }
+
+      const result = await db.runAsync(
+        `INSERT INTO sets
+           (session_exercise_id, set_index, reps, ts, rest_seconds, weight, duration_seconds, side, side_order, side_rest_seconds)
+         VALUES (?, ?, 0, ?, ?, NULL, ?, ?, ?, ?)`,
+        [
+          sessionExerciseId,
+          setIndex,
+          now,
+          restSeconds,
+          durationSeconds,
+          side,
+          sideOrder,
+          sideRestSeconds,
+        ]
+      );
+      await db.runAsync(
+        'UPDATE session_exercises SET timer_started_ts = NULL, timer_side = NULL WHERE id = ?',
+        [sessionExerciseId]
+      );
+      created = {
+        id: result.lastInsertRowId,
+        session_exercise_id: sessionExerciseId,
+        set_index: setIndex,
+        reps: 0,
+        ts: now,
+        rest_seconds: restSeconds,
+        weight: null,
+        duration_seconds: durationSeconds,
+        side,
+        side_order: sideOrder,
+        side_rest_seconds: sideRestSeconds,
+      };
+      return;
+    }
 
     const previous = await db.getFirstAsync<ExerciseSet>(
       'SELECT * FROM sets WHERE session_exercise_id = ? ORDER BY set_index DESC LIMIT 1',
       [sessionExerciseId]
     );
-    const now = Date.now();
-    const durationSeconds = Math.max(1, Math.round((now - block.timer_started_ts) / 1000));
     const restSeconds = previous
       ? Math.max(0, Math.round((block.timer_started_ts - previous.ts) / 1000))
       : null;
@@ -265,12 +432,12 @@ export async function finishHoldSet(
 
     const result = await db.runAsync(
       `INSERT INTO sets
-         (session_exercise_id, set_index, reps, ts, rest_seconds, weight, duration_seconds)
-       VALUES (?, ?, 0, ?, ?, NULL, ?)`,
+         (session_exercise_id, set_index, reps, ts, rest_seconds, weight, duration_seconds, side, side_order, side_rest_seconds)
+       VALUES (?, ?, 0, ?, ?, NULL, ?, NULL, NULL, NULL)`,
       [sessionExerciseId, setIndex, now, restSeconds, durationSeconds]
     );
     await db.runAsync(
-      'UPDATE session_exercises SET timer_started_ts = NULL WHERE id = ?',
+      'UPDATE session_exercises SET timer_started_ts = NULL, timer_side = NULL WHERE id = ?',
       [sessionExerciseId]
     );
     created = {
@@ -282,6 +449,9 @@ export async function finishHoldSet(
       rest_seconds: restSeconds,
       weight: null,
       duration_seconds: durationSeconds,
+      side: null,
+      side_order: null,
+      side_rest_seconds: null,
     };
   });
   return created;
@@ -397,7 +567,8 @@ export async function addAdditionalExercise(
   exerciseName: string,
   esCorporal: boolean,
   exerciseType: TrainingType = 'strength',
-  trackingMode: ExerciseTracking = 'reps'
+  trackingMode: ExerciseTracking = 'reps',
+  isUnilateral = false
 ): Promise<number> {
   const row = await db.getFirstAsync<{ maxPos: number | null }>(
     'SELECT MAX(position) AS maxPos FROM session_exercises WHERE session_id = ?',
@@ -407,8 +578,8 @@ export async function addAdditionalExercise(
   const res = await db.runAsync(
     `INSERT INTO session_exercises
        (session_id, exercise_id, exercise_name, es_corporal, weight, position, is_additional,
-        status, exercise_type, cardio_tracking, tracking_mode)
-     VALUES (?, ?, ?, ?, NULL, ?, 1, 'pending', ?, ?, ?)`,
+        status, exercise_type, cardio_tracking, tracking_mode, is_unilateral, timer_side)
+     VALUES (?, ?, ?, ?, NULL, ?, 1, 'pending', ?, ?, ?, ?, NULL)`,
     [
       sessionId,
       exerciseId,
@@ -418,9 +589,121 @@ export async function addAdditionalExercise(
       exerciseType,
       'both',
       trackingMode,
+      exerciseType === 'cardio' ? 0 : isUnilateral ? 1 : 0,
     ]
   );
   return res.lastInsertRowId;
+}
+
+/**
+ * Edita la plantilla del día y sincroniza la sesión en curso preservando los
+ * ejercicios que ya tienen series/actividad o están terminados.
+ */
+export async function syncSessionWithDay(
+  db: SQLiteDatabase,
+  sessionId: number,
+  dayId: number,
+  dayName: string,
+  trainingType: TrainingType,
+  exerciseIds: number[]
+): Promise<SyncSessionResult> {
+  const trimmedName = dayName.trim();
+  await updateDay(db, dayId, trimmedName, exerciseIds, trainingType);
+
+  const preservedRemovedNames: string[] = [];
+
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('UPDATE sessions SET day_name = ?, day_type = ? WHERE id = ?', [
+      trimmedName,
+      trainingType,
+      sessionId,
+    ]);
+
+    const currentBlocks = await db.getAllAsync<SessionExercise>(
+      'SELECT * FROM session_exercises WHERE session_id = ? ORDER BY position ASC, id ASC',
+      [sessionId]
+    );
+
+    const activeIds = new Set<number>();
+    for (const block of currentBlocks) {
+      const setsCount = await db.getFirstAsync<{ count: number }>(
+        'SELECT COUNT(*) AS count FROM sets WHERE session_exercise_id = ?',
+        [block.id]
+      );
+      const cardioCount = await db.getFirstAsync<{ count: number }>(
+        'SELECT COUNT(*) AS count FROM cardio_entries WHERE session_exercise_id = ?',
+        [block.id]
+      );
+      const hasActivity =
+        (setsCount?.count ?? 0) > 0 ||
+        (cardioCount?.count ?? 0) > 0 ||
+        block.timer_started_ts != null ||
+        block.status === 'done';
+      if (hasActivity) activeIds.add(block.id);
+    }
+
+    const desiredSet = new Set(exerciseIds);
+    const matchedBlockByExercise = new Map<number, SessionExercise>();
+    const keptOtherBlocks: SessionExercise[] = [];
+
+    for (const block of currentBlocks) {
+      const inTemplate = block.exercise_id != null && desiredSet.has(block.exercise_id);
+      if (inTemplate && block.exercise_id != null && !matchedBlockByExercise.has(block.exercise_id)) {
+        matchedBlockByExercise.set(block.exercise_id, block);
+        continue;
+      }
+
+      if (activeIds.has(block.id) || block.is_additional === 1) {
+        if (!inTemplate && block.is_additional === 0 && activeIds.has(block.id)) {
+          preservedRemovedNames.push(block.exercise_name);
+        }
+        keptOtherBlocks.push(block);
+      } else {
+        await db.runAsync('DELETE FROM session_exercises WHERE id = ?', [block.id]);
+      }
+    }
+
+    for (let i = 0; i < exerciseIds.length; i++) {
+      const exId = exerciseIds[i];
+      const existing = matchedBlockByExercise.get(exId);
+      if (existing) {
+        await db.runAsync(
+          'UPDATE session_exercises SET position = ?, is_additional = 0 WHERE id = ?',
+          [i, existing.id]
+        );
+      } else {
+        const ex = await db.getFirstAsync<Exercise>('SELECT * FROM exercises WHERE id = ?', [exId]);
+        if (ex) {
+          await db.runAsync(
+            `INSERT INTO session_exercises
+               (session_id, exercise_id, exercise_name, es_corporal, weight, position, is_additional,
+                status, exercise_type, cardio_tracking, tracking_mode, is_unilateral, timer_side)
+             VALUES (?, ?, ?, ?, NULL, ?, 0, 'pending', ?, ?, ?, ?, NULL)`,
+            [
+              sessionId,
+              ex.id,
+              ex.name,
+              ex.es_corporal,
+              i,
+              ex.exercise_type,
+              ex.cardio_tracking,
+              ex.tracking_mode,
+              ex.is_unilateral,
+            ]
+          );
+        }
+      }
+    }
+
+    for (let j = 0; j < keptOtherBlocks.length; j++) {
+      await db.runAsync('UPDATE session_exercises SET position = ? WHERE id = ?', [
+        exerciseIds.length + j,
+        keptOtherBlocks[j].id,
+      ]);
+    }
+  });
+
+  return { preservedRemovedNames };
 }
 
 /** "Guardar": pausa la sesión para retomarla luego. */

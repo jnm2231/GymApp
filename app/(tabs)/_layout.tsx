@@ -52,9 +52,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="historico"
         options={{
-          title: 'Histórico',
+          title: 'Ejercicios',
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="chart-line" size={size} color={color} />
+            <MaterialCommunityIcons name="format-list-bulleted" size={size} color={color} />
           ),
         }}
       />

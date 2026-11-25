@@ -1,63 +1,101 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
 } from 'react-native';
 
 import { useAlert } from '@/components/gym/alert';
+import { DraggableExerciseList } from '@/components/gym/draggable-exercise-list';
 import { Button, EmptyState } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { createDay, getDay, getDayExercises, updateDay } from '@/db/days';
 import { createExercise, listExercises } from '@/db/exercises';
-import type { Exercise, TrainingType } from '@/db/types';
+import { listMuscleGroups } from '@/db/muscle-groups';
+import { syncSessionWithDay } from '@/db/sessions';
+import type { ExerciseWithMuscleGroup, MuscleGroup, TrainingType } from '@/db/types';
 import { DAY_TYPES, getTrainingType, TRAINING_TYPES } from '@/lib/training-types';
 
 export default function DayFormScreen() {
   const db = useSQLiteContext();
   const showAlert = useAlert();
-  const params = useLocalSearchParams<{ id?: string }>();
-  const dayId = params.id ? Number(params.id) : null;
+  const params = useLocalSearchParams<{ id?: string; sessionId?: string }>();
+  const parsedDayId = params.id ? Number(params.id) : null;
+  const dayId = parsedDayId != null && Number.isFinite(parsedDayId) ? parsedDayId : null;
+  const parsedSessionId = params.sessionId ? Number(params.sessionId) : null;
+  const sessionId =
+    parsedSessionId != null && Number.isFinite(parsedSessionId) ? parsedSessionId : null;
   const isEdit = dayId != null;
 
   const [name, setName] = useState('');
-  const [catalog, setCatalog] = useState<Exercise[]>([]);
-  const [selected, setSelected] = useState<number[]>([]); // en orden de selección
+  const [catalog, setCatalog] = useState<ExerciseWithMuscleGroup[]>([]);
+  const [muscleGroups, setMuscleGroups] = useState<MuscleGroup[]>([]);
+  const [selected, setSelected] = useState<number[]>([]); // en orden de selección / arrastre
   const [trainingType, setTrainingType] = useState<TrainingType>('strength');
   const [expandedTypes, setExpandedTypes] = useState<TrainingType[]>(['strength']);
   const [newExerciseType, setNewExerciseType] = useState<TrainingType | null>(null);
   const [newExerciseName, setNewExerciseName] = useState('');
+  const [newIsUnilateral, setNewIsUnilateral] = useState(false);
+  const [newMuscleGroupId, setNewMuscleGroupId] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [saving, setSaving] = useState(false);
+
   const orderedTypes = [
     getTrainingType(trainingType),
     ...TRAINING_TYPES.filter((type) => type.value !== trainingType),
   ];
 
+  const selectedExercises = useMemo(() => {
+    const byId = new Map(catalog.map((exercise) => [exercise.id, exercise]));
+    return selected
+      .map((id) => byId.get(id))
+      .filter((exercise): exercise is ExerciseWithMuscleGroup => exercise != null);
+  }, [catalog, selected]);
+
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      setCatalog(await listExercises(db));
-      if (isEdit) {
+      const exercises = await listExercises(db);
+      const groups = await listMuscleGroups(db);
+      if (cancelled) return;
+      setCatalog(exercises);
+      setMuscleGroups(groups);
+
+      if (isEdit && dayId != null) {
         const day = await getDay(db, dayId);
+        const exs = await getDayExercises(db, dayId);
+        if (cancelled) return;
         if (day) {
           setName(day.name);
           setTrainingType(day.training_type);
           setExpandedTypes([day.training_type]);
         }
-        const exs = await getDayExercises(db, dayId);
         setSelected(exs.map((e) => e.id));
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [db, dayId, isEdit]);
 
   const toggle = (id: number) => {
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const resetCreateForm = (nextType: TrainingType | null) => {
+    setNewExerciseType(nextType);
+    setNewExerciseName('');
+    setNewIsUnilateral(false);
+    setNewMuscleGroupId(null);
   };
 
   const handleCreateExercise = async () => {
@@ -67,17 +105,24 @@ export default function DayFormScreen() {
       return;
     }
     try {
-      const exerciseId = await createExercise(db, trimmed, newExerciseType);
+      const isCardio = newExerciseType === 'cardio';
+      const exerciseId = await createExercise(db, trimmed, newExerciseType, {
+        isUnilateral: isCardio ? false : newIsUnilateral,
+        muscleGroupId: isCardio ? null : newMuscleGroupId,
+      });
       setCatalog(await listExercises(db));
-      setSelected((prev) => [...prev, exerciseId]);
-      setNewExerciseName('');
-      setNewExerciseType(null);
-    } catch {
-      showAlert('Ya existe', `El ejercicio "${trimmed}" ya está en el catálogo.`);
+      setSelected((prev) => (prev.includes(exerciseId) ? prev : [...prev, exerciseId]));
+      resetCreateForm(null);
+    } catch (error) {
+      showAlert(
+        'No se pudo crear',
+        error instanceof Error ? error.message : `El ejercicio "${trimmed}" ya está en el catálogo.`
+      );
     }
   };
 
   const handleSave = async () => {
+    if (saving) return;
     const trimmed = name.trim();
     if (!trimmed) {
       showAlert('Falta el nombre', 'Ponle un nombre al día (ej: Pecho).');
@@ -87,12 +132,35 @@ export default function DayFormScreen() {
       showAlert('Sin ejercicios', 'Selecciona al menos un ejercicio para el día.');
       return;
     }
-    if (isEdit) {
-      await updateDay(db, dayId, trimmed, selected, trainingType);
-    } else {
-      await createDay(db, trimmed, selected, trainingType);
+
+    setSaving(true);
+    try {
+      if (sessionId != null && isEdit && dayId != null) {
+        const res = await syncSessionWithDay(
+          db,
+          sessionId,
+          dayId,
+          trimmed,
+          trainingType,
+          selected
+        );
+        if (res.preservedRemovedNames.length > 0) {
+          showAlert(
+            'Cambios guardados',
+            `Se actualizó la plantilla del día. Estos ejercicios se mantuvieron en la sesión actual porque ya tenían actividad registrada:\n\n• ${res.preservedRemovedNames.join('\n• ')}`,
+            [{ text: 'OK', onPress: () => router.back() }]
+          );
+          return;
+        }
+      } else if (isEdit && dayId != null) {
+        await updateDay(db, dayId, trimmed, selected, trainingType);
+      } else {
+        await createDay(db, trimmed, selected, trainingType);
+      }
+      router.back();
+    } finally {
+      setSaving(false);
     }
-    router.back();
   };
 
   return (
@@ -100,7 +168,10 @@ export default function DayFormScreen() {
       style={{ flex: 1, backgroundColor: GymTheme.background }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Stack.Screen options={{ title: isEdit ? 'Editar día' : 'Nuevo día' }} />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        scrollEnabled={!isDragging}>
         <Text style={styles.label}>Nombre del día</Text>
         <TextInput
           style={styles.input}
@@ -118,14 +189,16 @@ export default function DayFormScreen() {
               key={type.value}
               style={[
                 styles.typeChip,
-                trainingType === type.value && { borderColor: type.color, backgroundColor: type.dimColor },
+                trainingType === type.value && {
+                  borderColor: type.color,
+                  backgroundColor: type.dimColor,
+                },
               ]}
               onPress={() => {
                 if (trainingType === type.value) return;
                 setTrainingType(type.value);
                 setExpandedTypes([type.value]);
-                setNewExerciseType(null);
-                setNewExerciseName('');
+                resetCreateForm(null);
               }}>
               <MaterialCommunityIcons name={type.icon} size={17} color={type.color} />
               <Text style={[styles.typeText, trainingType === type.value && { color: type.color }]}>
@@ -135,8 +208,23 @@ export default function DayFormScreen() {
           ))}
         </View>
         <Text style={styles.hint}>
-          {isEdit ? 'Puedes cambiar el tipo sin perder los ejercicios seleccionados.' : 'Define el color del día y el grupo que se abre primero.'}
+          {isEdit
+            ? 'Puedes cambiar el tipo sin perder los ejercicios seleccionados.'
+            : 'Define el color del día y el grupo que se abre primero.'}
         </Text>
+
+        <Text style={[styles.label, { marginTop: Spacing.md }]}>
+          Orden del día {selected.length > 0 ? `(${selected.length})` : ''}
+        </Text>
+        <Text style={styles.hint}>
+          Arrastra desde el icono izquierdo para reordenar los ejercicios del entrenamiento.
+        </Text>
+        <DraggableExerciseList
+          exercises={selectedExercises}
+          onReorder={setSelected}
+          onRemove={toggle}
+          onDragActiveChange={setIsDragging}
+        />
 
         <Text style={[styles.label, { marginTop: Spacing.lg }]}>
           Ejercicios {selected.length > 0 ? `(${selected.length})` : ''}
@@ -148,8 +236,7 @@ export default function DayFormScreen() {
         <Pressable
           style={styles.createExerciseButton}
           onPress={() => {
-            setNewExerciseType((current) => current == null ? trainingType : null);
-            setNewExerciseName('');
+            resetCreateForm(newExerciseType == null ? trainingType : null);
           }}>
           <MaterialCommunityIcons
             name={newExerciseType == null ? 'plus-circle-outline' : 'close'}
@@ -166,18 +253,90 @@ export default function DayFormScreen() {
             <Text style={styles.createTitle}>Nuevo ejercicio</Text>
             <View style={styles.typeRow}>
               {TRAINING_TYPES.map((type) => (
-                <Pressable key={type.value}
-                  style={[styles.typeChip, newExerciseType === type.value && { borderColor: type.color, backgroundColor: type.dimColor }]}
+                <Pressable
+                  key={type.value}
+                  style={[
+                    styles.typeChip,
+                    newExerciseType === type.value && {
+                      borderColor: type.color,
+                      backgroundColor: type.dimColor,
+                    },
+                  ]}
                   onPress={() => setNewExerciseType(type.value)}>
                   <MaterialCommunityIcons name={type.icon} size={16} color={type.color} />
-                  <Text style={[styles.typeText, newExerciseType === type.value && { color: type.color }]}>{type.label}</Text>
+                  <Text
+                    style={[
+                      styles.typeText,
+                      newExerciseType === type.value && { color: type.color },
+                    ]}>
+                    {type.label}
+                  </Text>
                 </Pressable>
               ))}
             </View>
-            <TextInput style={styles.input}
-              placeholder={newExerciseType === 'cardio' ? 'Ej: Cinta de correr' : 'Nombre del ejercicio'}
-              placeholderTextColor={GymTheme.textFaint} value={newExerciseName}
-              onChangeText={setNewExerciseName} returnKeyType="done" onSubmitEditing={handleCreateExercise} />
+            <TextInput
+              style={styles.input}
+              placeholder={
+                newExerciseType === 'cardio' ? 'Ej: Cinta de correr' : 'Nombre del ejercicio'
+              }
+              placeholderTextColor={GymTheme.textFaint}
+              value={newExerciseName}
+              onChangeText={setNewExerciseName}
+              returnKeyType="done"
+              onSubmitEditing={handleCreateExercise}
+            />
+
+            {newExerciseType !== 'cardio' ? (
+              <>
+                <View style={styles.switchRow}>
+                  <Text style={styles.subLabel}>Unilateral (izq / der)</Text>
+                  <Switch
+                    value={newIsUnilateral}
+                    onValueChange={setNewIsUnilateral}
+                    trackColor={{ true: GymTheme.primary, false: GymTheme.disabled }}
+                    thumbColor={GymTheme.white}
+                  />
+                </View>
+
+                <View style={styles.muscleGroupSection}>
+                  <Text style={styles.subLabel}>Grupo muscular</Text>
+                  <View style={styles.chipRow}>
+                    <Pressable
+                      style={[
+                        styles.muscleChip,
+                        newMuscleGroupId === null && styles.muscleChipSelected,
+                      ]}
+                      onPress={() => setNewMuscleGroupId(null)}>
+                      <Text
+                        style={[
+                          styles.muscleChipText,
+                          newMuscleGroupId === null && styles.muscleChipTextSelected,
+                        ]}>
+                        Sin definir
+                      </Text>
+                    </Pressable>
+                    {muscleGroups.map((group) => {
+                      const active = newMuscleGroupId === group.id;
+                      return (
+                        <Pressable
+                          key={group.id}
+                          style={[styles.muscleChip, active && styles.muscleChipSelected]}
+                          onPress={() => setNewMuscleGroupId(group.id)}>
+                          <Text
+                            style={[
+                              styles.muscleChipText,
+                              active && styles.muscleChipTextSelected,
+                            ]}>
+                            {group.name}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              </>
+            ) : null}
+
             <Button title="Crear y seleccionar" onPress={handleCreateExercise} />
           </View>
         ) : null}
@@ -185,7 +344,9 @@ export default function DayFormScreen() {
         {orderedTypes.map((type) => {
           const expanded = expandedTypes.includes(type.value);
           const exercises = catalog.filter((exercise) => exercise.exercise_type === type.value);
-          const selectedCount = exercises.filter((exercise) => selected.includes(exercise.id)).length;
+          const selectedCount = exercises.filter((exercise) =>
+            selected.includes(exercise.id)
+          ).length;
           return (
             <View key={type.value} style={[styles.exerciseGroup, { borderColor: type.color }]}>
               <Pressable
@@ -199,7 +360,9 @@ export default function DayFormScreen() {
                 }>
                 <MaterialCommunityIcons name={type.icon} size={19} color={type.color} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.groupTitle, { color: type.color }]}>Ejercicios de {type.label.toLowerCase()}</Text>
+                  <Text style={[styles.groupTitle, { color: type.color }]}>
+                    Ejercicios de {type.label.toLowerCase()}
+                  </Text>
                   <Text style={styles.groupMeta}>
                     {exercises.length} {exercises.length === 1 ? 'ejercicio' : 'ejercicios'}
                     {selectedCount > 0 ? ` · ${selectedCount} seleccionados` : ''}
@@ -223,6 +386,12 @@ export default function DayFormScreen() {
                     exercises.map((exercise) => {
                       const order = selected.indexOf(exercise.id);
                       const isSelected = order !== -1;
+                      const meta = [
+                        exercise.muscle_group_name,
+                        exercise.is_unilateral === 1 ? 'Unilateral' : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ');
                       return (
                         <Pressable
                           key={exercise.id}
@@ -237,15 +406,25 @@ export default function DayFormScreen() {
                           <View
                             style={[
                               styles.checkbox,
-                              isSelected && { backgroundColor: type.color, borderColor: type.color },
+                              isSelected && {
+                                backgroundColor: type.color,
+                                borderColor: type.color,
+                              },
                             ]}>
                             {isSelected ? (
                               <Text style={styles.orderNum}>{order + 1}</Text>
                             ) : (
-                              <MaterialCommunityIcons name="plus" size={16} color={GymTheme.textFaint} />
+                              <MaterialCommunityIcons
+                                name="plus"
+                                size={16}
+                                color={GymTheme.textFaint}
+                              />
                             )}
                           </View>
-                          <Text style={styles.exName}>{exercise.name}</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.exName}>{exercise.name}</Text>
+                            {meta ? <Text style={styles.exMeta}>{meta}</Text> : null}
+                          </View>
                         </Pressable>
                       );
                     })
@@ -262,6 +441,7 @@ export default function DayFormScreen() {
         <Button
           title={isEdit ? 'Guardar cambios' : 'Crear día'}
           onPress={handleSave}
+          loading={saving}
           style={{ flex: 2 }}
         />
       </View>
@@ -272,6 +452,7 @@ export default function DayFormScreen() {
 const styles = StyleSheet.create({
   content: { padding: Spacing.lg, paddingBottom: Spacing.xxl, gap: Spacing.sm },
   label: { color: GymTheme.text, fontSize: 15, fontWeight: '700' },
+  subLabel: { color: GymTheme.textMuted, fontSize: 13, fontWeight: '700' },
   hint: { color: GymTheme.textMuted, fontSize: 12, marginBottom: Spacing.xs },
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   typeChip: {
@@ -295,6 +476,45 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     color: GymTheme.text,
     fontSize: 16,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: GymTheme.inputBg,
+    borderWidth: 1,
+    borderColor: GymTheme.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+  },
+  muscleGroupSection: {
+    gap: Spacing.xs,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+  },
+  muscleChip: {
+    borderWidth: 1,
+    borderColor: GymTheme.border,
+    borderRadius: Radius.pill,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    backgroundColor: GymTheme.inputBg,
+  },
+  muscleChipSelected: {
+    borderColor: GymTheme.primary,
+    backgroundColor: GymTheme.primaryDim,
+  },
+  muscleChipText: {
+    color: GymTheme.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  muscleChipTextSelected: {
+    color: GymTheme.primary,
   },
   exerciseGroup: {
     backgroundColor: GymTheme.surface,
@@ -332,7 +552,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   orderNum: { color: '#0C0C0E', fontWeight: '800', fontSize: 14 },
-  exName: { color: GymTheme.text, fontSize: 15, flex: 1, fontWeight: '500' },
+  exName: { color: GymTheme.text, fontSize: 15, fontWeight: '500' },
+  exMeta: { color: GymTheme.textMuted, fontSize: 11, marginTop: 2 },
   createExerciseButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -344,7 +565,12 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     backgroundColor: GymTheme.primaryDim,
   },
-  createExerciseButtonText: { color: GymTheme.primary, fontSize: 14, fontWeight: '800', marginLeft: 6 },
+  createExerciseButtonText: {
+    color: GymTheme.primary,
+    fontSize: 14,
+    fontWeight: '800',
+    marginLeft: 6,
+  },
   createCard: {
     backgroundColor: GymTheme.surface,
     borderWidth: 1,

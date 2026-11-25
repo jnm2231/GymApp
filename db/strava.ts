@@ -14,7 +14,6 @@ export interface StravaActivity {
   max_speed?: number;
   average_heartrate?: number;
   max_heartrate?: number;
-  calories?: number;
   description?: string;
   device_name?: string;
   athlete?: { id?: number | string };
@@ -34,7 +33,25 @@ export interface StoredStravaActivity {
 
 export interface StravaMapping {
   sport_type: string;
-  day_id: number;
+  exercise_id: number;
+}
+
+/** Conserva una asignación antigua solo cuando el día identifica claramente un ejercicio. */
+export async function resolveLegacyStravaExerciseId(
+  db: SQLiteDatabase, dayId: number
+): Promise<number | null> {
+  const choices = await db.getAllAsync<{ id: number; name: string; day_name: string }>(
+    `SELECT e.id, e.name, d.name AS day_name FROM day_exercises de
+       JOIN exercises e ON e.id = de.exercise_id AND e.exercise_type = 'cardio'
+       JOIN days d ON d.id = de.day_id
+      WHERE de.day_id = ? ORDER BY de.position`,
+    [dayId]
+  );
+  if (choices.length === 1) return choices[0].id;
+  const matches = choices.filter((choice) =>
+    choice.name.trim().localeCompare(choice.day_name.trim(), undefined, { sensitivity: 'base' }) === 0
+  );
+  return matches.length === 1 ? matches[0].id : null;
 }
 
 export interface ImportedStravaActivity {
@@ -84,22 +101,30 @@ export async function setStravaImportFloor(db: SQLiteDatabase, value: number): P
 }
 
 export async function getStravaMappings(db: SQLiteDatabase): Promise<StravaMapping[]> {
-  return db.getAllAsync<StravaMapping>('SELECT sport_type, day_id FROM strava_mappings ORDER BY sport_type');
+  return db.getAllAsync<StravaMapping>(
+    'SELECT sport_type, exercise_id FROM strava_mappings ORDER BY sport_type'
+  );
 }
 
-export async function setStravaMapping(db: SQLiteDatabase, sportType: string, dayId: number | null): Promise<void> {
-  if (dayId == null) {
+export async function setStravaMapping(
+  db: SQLiteDatabase, sportType: string, exerciseId: number | null
+): Promise<void> {
+  if (exerciseId == null) {
     await db.runAsync('DELETE FROM strava_mappings WHERE sport_type = ?', [sportType]);
     return;
   }
-  const day = await db.getFirstAsync<{ training_type: string }>(
-    'SELECT training_type FROM days WHERE id = ?', [dayId]
+  const exercise = await db.getFirstAsync<{ id: number; name: string }>(
+    "SELECT id, name FROM exercises WHERE id = ? AND exercise_type = 'cardio'", [exerciseId]
   );
-  if (day?.training_type !== 'cardio') throw new Error('Selecciona un día de cardio.');
-  await db.runAsync(
-    'INSERT INTO strava_mappings (sport_type, day_id) VALUES (?, ?) ON CONFLICT(sport_type) DO UPDATE SET day_id = excluded.day_id',
-    [sportType, dayId]
-  );
+  if (!exercise) throw new Error('Selecciona un ejercicio de cardio.');
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      `INSERT INTO strava_mappings (sport_type, exercise_id) VALUES (?, ?)
+       ON CONFLICT(sport_type) DO UPDATE SET exercise_id = excluded.exercise_id`,
+      [sportType, exerciseId]
+    );
+    await reconcileImportedStravaActivitiesForSport(db, sportType, exercise);
+  });
 }
 
 export async function getSeenSportTypes(db: SQLiteDatabase): Promise<string[]> {
@@ -123,7 +148,7 @@ export async function listPendingMappedActivities(db: SQLiteDatabase, athleteId:
   return db.getAllAsync<StoredStravaActivity>(
     `SELECT a.* FROM strava_activities a
        JOIN strava_mappings m ON m.sport_type = a.sport_type
-       JOIN days d ON d.id = m.day_id AND d.training_type = 'cardio'
+       JOIN exercises e ON e.id = m.exercise_id AND e.exercise_type = 'cardio'
       WHERE a.session_id IS NULL AND a.athlete_id = ? AND a.start_ts >= ? ORDER BY a.start_ts ASC`,
     [athleteId, floor * 1000]
   );
@@ -131,6 +156,67 @@ export async function listPendingMappedActivities(db: SQLiteDatabase, athleteId:
 
 export async function getStoredStravaActivity(db: SQLiteDatabase, id: string): Promise<StoredStravaActivity | null> {
   return db.getFirstAsync<StoredStravaActivity>('SELECT * FROM strava_activities WHERE activity_id = ?', [id]);
+}
+
+async function getOrCreateCardioDay(
+  db: SQLiteDatabase, exercise: { id: number; name: string }
+): Promise<number> {
+  let day = await db.getFirstAsync<{ id: number }>(
+    "SELECT id FROM days WHERE training_type = 'cardio' AND name = ? COLLATE NOCASE ORDER BY id LIMIT 1",
+    [exercise.name]
+  );
+  if (!day) {
+    const result = await db.runAsync(
+      "INSERT INTO days (name, training_type, created_at) VALUES (?, 'cardio', ?)",
+      [exercise.name, Date.now()]
+    );
+    day = { id: result.lastInsertRowId };
+  }
+  await db.runAsync(
+    `INSERT INTO day_exercises (day_id, exercise_id, position)
+     SELECT ?, ?, COALESCE((SELECT MAX(position) + 1 FROM day_exercises WHERE day_id = ?), 0)
+      WHERE NOT EXISTS (
+        SELECT 1 FROM day_exercises WHERE day_id = ? AND exercise_id = ?
+      )`,
+    [day.id, exercise.id, day.id, day.id, exercise.id]
+  );
+  return day.id;
+}
+
+async function reconcileImportedStravaActivitiesForSport(
+  db: SQLiteDatabase, sportType: string, exercise: { id: number; name: string }
+): Promise<void> {
+  const activities = await db.getAllAsync<{ session_id: number }>(
+    `SELECT session_id FROM strava_activities
+      WHERE sport_type = ? AND session_id IS NOT NULL`, [sportType]
+  );
+  if (activities.length === 0) return;
+  const dayId = await getOrCreateCardioDay(db, exercise);
+  for (const activity of activities) {
+    await db.runAsync(
+      "UPDATE sessions SET day_id = ?, day_name = ?, day_type = 'cardio' WHERE id = ?",
+      [dayId, exercise.name, activity.session_id]
+    );
+    await db.runAsync(
+      `UPDATE session_exercises SET exercise_id = ?, exercise_name = ?, is_additional = 0,
+        exercise_type = 'cardio', cardio_tracking = 'both'
+       WHERE session_id = ?`,
+      [exercise.id, exercise.name, activity.session_id]
+    );
+  }
+}
+
+export async function reconcileAllImportedStravaActivities(db: SQLiteDatabase): Promise<void> {
+  const mappings = await getStravaMappings(db);
+  await db.withTransactionAsync(async () => {
+    for (const mapping of mappings) {
+      const exercise = await db.getFirstAsync<{ id: number; name: string }>(
+        "SELECT id, name FROM exercises WHERE id = ? AND exercise_type = 'cardio'",
+        [mapping.exercise_id]
+      );
+      if (exercise) await reconcileImportedStravaActivitiesForSport(db, mapping.sport_type, exercise);
+    }
+  });
 }
 
 export async function storeStravaActivity(
@@ -159,12 +245,13 @@ export async function importStravaActivity(db: SQLiteDatabase, id: string): Prom
   await db.withTransactionAsync(async () => {
     const activity = await getStoredStravaActivity(db, id);
     if (!activity || activity.session_id != null || !activity.detail_loaded) return;
-    const day = await db.getFirstAsync<{ id: number; name: string }>(
-      `SELECT d.id, d.name FROM strava_mappings m
-         JOIN days d ON d.id = m.day_id AND d.training_type = 'cardio'
+    const exercise = await db.getFirstAsync<{ id: number; name: string }>(
+      `SELECT e.id, e.name FROM strava_mappings m
+         JOIN exercises e ON e.id = m.exercise_id AND e.exercise_type = 'cardio'
         WHERE m.sport_type = ?`, [activity.sport_type]
     );
-    if (!day) return;
+    if (!exercise) return;
+    const dayId = await getOrCreateCardioDay(db, exercise);
     const raw = JSON.parse(activity.raw_json) as StravaActivity;
     const duration = Math.max(0, Number(raw.moving_time ?? raw.elapsed_time ?? 0));
     const elapsed = Math.max(duration, Number(raw.elapsed_time ?? duration));
@@ -172,14 +259,14 @@ export async function importStravaActivity(db: SQLiteDatabase, id: string): Prom
     const session = await db.runAsync(
       `INSERT INTO sessions (day_id, day_name, start_ts, end_ts, user_weight, status, day_type)
        VALUES (?, ?, ?, ?, NULL, 'finished', 'cardio')`,
-      [day.id, day.name, activity.start_ts, endTs]
+      [dayId, exercise.name, activity.start_ts, endTs]
     );
     const block = await db.runAsync(
       `INSERT INTO session_exercises
        (session_id, exercise_id, exercise_name, position, is_additional, start_ts, end_ts,
         status, exercise_type, cardio_tracking, tracking_mode)
-       VALUES (?, NULL, ?, 0, 1, ?, ?, 'done', 'cardio', 'both', 'reps')`,
-      [session.lastInsertRowId, activity.name, activity.start_ts, endTs]
+       VALUES (?, ?, ?, 0, 0, ?, ?, 'done', 'cardio', 'both', 'reps')`,
+      [session.lastInsertRowId, exercise.id, exercise.name, activity.start_ts, endTs]
     );
     const distanceKm = typeof raw.distance === 'number' ? raw.distance / 1000 : null;
     await db.runAsync(

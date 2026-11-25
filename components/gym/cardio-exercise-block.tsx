@@ -27,6 +27,8 @@ interface Props {
   onFocus: () => void;
   onPostpone: () => void;
   onChanged: () => Promise<void>;
+  onOpenHistory: (exerciseId: number) => void;
+  onEditExercise: (exerciseId: number, sessionExerciseId: number) => void;
 }
 
 export function CardioExerciseBlock({
@@ -37,6 +39,8 @@ export function CardioExerciseBlock({
   onFocus,
   onPostpone,
   onChanged,
+  onOpenHistory,
+  onEditExercise,
 }: Props) {
   const db = useSQLiteContext();
   const done = block.status === 'done';
@@ -182,6 +186,19 @@ export function CardioExerciseBlock({
       )}
 
       <View style={styles.actions}>
+        {block.exercise_id != null ? (
+          <>
+            <Pressable style={styles.iconBtn} onPress={() => onOpenHistory(block.exercise_id!)} hitSlop={6}>
+              <MaterialCommunityIcons name="chart-line" size={20} color={GymTheme.textMuted} />
+            </Pressable>
+            <Pressable
+              style={styles.iconBtn}
+              onPress={() => onEditExercise(block.exercise_id!, block.id)}
+              hitSlop={6}>
+              <MaterialCommunityIcons name="tune" size={20} color={GymTheme.textMuted} />
+            </Pressable>
+          </>
+        ) : null}
         <View style={{ flex: 1 }} />
         {done ? (
           <>
@@ -262,6 +279,14 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderTopWidth: 1,
     borderTopColor: GymTheme.border, paddingTop: Spacing.md,
+  },
+  iconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: Radius.sm,
+    backgroundColor: GymTheme.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   editBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 7 },
   editText: { color: GymTheme.cardio, fontSize: 13, fontWeight: '700' },

@@ -17,7 +17,7 @@ type NotificationsModule = typeof import('expo-notifications');
 type NotificationResponse = import('expo-notifications').NotificationResponse;
 export type WorkoutTimerKind = 'rest' | 'hold' | 'cardio';
 
-let configured = false;
+let configurePromise: Promise<NotificationsModule | null> | null = null;
 
 /** Expo Go Android no incluye expo-notifications desde SDK 53. */
 async function loadNotifications(): Promise<NotificationsModule | null> {
@@ -26,48 +26,59 @@ async function loadNotifications(): Promise<NotificationsModule | null> {
 }
 
 export async function configureWorkoutNotifications(): Promise<NotificationsModule | null> {
-  const Notifications = await loadNotifications();
-  if (!Notifications || configured) return Notifications;
-  configured = true;
+  if (!configurePromise) {
+    configurePromise = (async () => {
+      const Notifications = await loadNotifications();
+      if (!Notifications) return null;
 
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: false,
-      shouldSetBadge: false,
-    }),
-  });
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowBanner: true,
+          shouldShowList: true,
+          shouldPlaySound: false,
+          shouldSetBadge: false,
+        }),
+      });
 
-  void Notifications.setNotificationCategoryAsync(WORKOUT_REMINDER_CATEGORY, [
-    {
-      identifier: FINISH_ACTION,
-      buttonTitle: 'Finalizar entrenamiento',
-      options: { isDestructive: true },
-    },
-    {
-      identifier: CONTINUE_ACTION,
-      buttonTitle: 'No, sigo entrenando',
-    },
-  ]);
+      await Notifications.setNotificationCategoryAsync(WORKOUT_REMINDER_CATEGORY, [
+        {
+          identifier: FINISH_ACTION,
+          buttonTitle: 'Finalizar entrenamiento',
+          options: { isDestructive: true },
+        },
+        {
+          identifier: CONTINUE_ACTION,
+          buttonTitle: 'No, sigo entrenando',
+        },
+      ]);
 
-  if (Platform.OS === 'android') {
-    void Notifications.setNotificationChannelAsync('workout', {
-      name: 'Entrenamiento',
-      importance: Notifications.AndroidImportance.DEFAULT,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#B8FF3D',
-    });
-    void Notifications.setNotificationChannelAsync(TIMER_CHANNEL, {
-      name: 'Cronómetros de entrenamiento',
-      importance: Notifications.AndroidImportance.LOW,
-      vibrationPattern: null,
-      sound: null,
-      lightColor: '#3B82F6',
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('workout', {
+          name: 'Entrenamiento',
+          importance: Notifications.AndroidImportance.DEFAULT,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#B8FF3D',
+          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        });
+        await Notifications.setNotificationChannelAsync(TIMER_CHANNEL, {
+          name: 'Cronómetros de entrenamiento',
+          importance: Notifications.AndroidImportance.LOW,
+          vibrationPattern: null,
+          sound: null,
+          lightColor: '#3B82F6',
+          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+          showBadge: false,
+        });
+      }
+
+      return Notifications;
+    })().catch((error) => {
+      configurePromise = null;
+      throw error;
     });
   }
 
-  return Notifications;
+  return configurePromise;
 }
 
 export async function ensureNotificationsPermission(

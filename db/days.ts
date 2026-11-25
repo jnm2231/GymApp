@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { Day, DayWithCount, Exercise, TrainingType } from './types';
+import type { Day, DayWithCount, ExerciseWithMuscleGroup, TrainingType } from './types';
 
 /** Lista de plantillas de día con el nº de ejercicios que las componen. */
 export async function listDaysWithCount(db: SQLiteDatabase): Promise<DayWithCount[]> {
@@ -17,18 +17,22 @@ export async function getDay(db: SQLiteDatabase, id: number): Promise<Day | null
 }
 
 /** Ejercicios de una plantilla, en orden. */
-export async function getDayExercises(db: SQLiteDatabase, dayId: number): Promise<Exercise[]> {
-  return db.getAllAsync<Exercise>(
-    `SELECT e.*
+export async function getDayExercises(
+  db: SQLiteDatabase,
+  dayId: number
+): Promise<ExerciseWithMuscleGroup[]> {
+  return db.getAllAsync<ExerciseWithMuscleGroup>(
+    `SELECT e.*, mg.name AS muscle_group_name
        FROM day_exercises de
        JOIN exercises e ON e.id = de.exercise_id
-      WHERE de.day_id = ?
+       LEFT JOIN muscle_groups mg ON mg.id = e.muscle_group_id
+      WHERE de.day_id = ? AND e.archived_at IS NULL
       ORDER BY de.position ASC`,
     [dayId]
   );
 }
 
-async function replaceDayExercises(
+export async function replaceDayExercises(
   db: SQLiteDatabase,
   dayId: number,
   exerciseIds: number[]

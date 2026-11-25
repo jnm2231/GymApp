@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Stack, router, useFocusEffect } from 'expo-router';
+import { Stack, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -8,12 +8,12 @@ import { useAlert } from '@/components/gym/alert';
 import { Button } from '@/components/gym/ui';
 import { GymTheme, Radius, Spacing } from '@/constants/gym-theme';
 import { useSession } from '@/context/session-context';
-import { listDaysWithCount } from '@/db/days';
+import { createExercise, listExercises } from '@/db/exercises';
 import {
   countPendingStravaActivities, getSeenSportTypes, getStravaMappings,
   setStravaImportFloor, setStravaMapping, type StravaMapping,
 } from '@/db/strava';
-import type { DayWithCount } from '@/db/types';
+import type { Exercise } from '@/db/types';
 import {
   connectStrava, disconnectStrava, getStravaCredentials, getStravaSession,
   saveStravaCredentials, type StravaSession,
@@ -32,6 +32,13 @@ const SPORTS = [
   'Surfing', 'TableTennis', 'Tennis', 'Velomobile', 'VirtualRow', 'Volleyball',
   'Wheelchair', 'Windsurf',
 ];
+const SPORT_LABELS: Record<string, string> = {
+  Run: 'Carrera', TrailRun: 'Carrera de montaña', VirtualRun: 'Carrera virtual',
+  Walk: 'Paseo', Hike: 'Senderismo', Ride: 'Ciclismo',
+  MountainBikeRide: 'Bicicleta de montaña', GravelRide: 'Gravel',
+  EBikeRide: 'Bicicleta eléctrica', EMountainBikeRide: 'Bicicleta de montaña eléctrica',
+  VirtualRide: 'Ciclismo virtual', Swim: 'Natación',
+};
 
 type ImportPolicy = '90days' | 'all' | 'future';
 
@@ -43,7 +50,8 @@ export default function StravaSettingsScreen() {
   const [clientSecret, setClientSecret] = useState('');
   const [hasCredentials, setHasCredentials] = useState(false);
   const [session, setSession] = useState<StravaSession | null>(null);
-  const [days, setDays] = useState<DayWithCount[]>([]);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [newExerciseName, setNewExerciseName] = useState('');
   const [mappings, setMappings] = useState<StravaMapping[]>([]);
   const [seen, setSeen] = useState<string[]>([]);
   const [pending, setPending] = useState(0);
@@ -53,14 +61,14 @@ export default function StravaSettingsScreen() {
   const [showAllSports, setShowAllSports] = useState(false);
 
   const load = useCallback(async () => {
-    const [credentials, activeSession, allDays, allMappings, seenTypes] = await Promise.all([
-      getStravaCredentials(), getStravaSession(), listDaysWithCount(db),
+    const [credentials, activeSession, allExercises, allMappings, seenTypes] = await Promise.all([
+      getStravaCredentials(), getStravaSession(), listExercises(db),
       getStravaMappings(db), getSeenSportTypes(db),
     ]);
     setClientId(credentials?.clientId ?? '');
     setHasCredentials(!!credentials);
     setSession(activeSession);
-    setDays(allDays.filter((day) => day.training_type === 'cardio'));
+    setExercises(allExercises.filter((exercise) => exercise.exercise_type === 'cardio'));
     setMappings(allMappings);
     setSeen(seenTypes);
     setPending(activeSession ? await countPendingStravaActivities(db, activeSession.athleteId) : 0);
@@ -115,13 +123,24 @@ export default function StravaSettingsScreen() {
     showAlert('Strava desconectado', 'Las actividades ya importadas permanecen en GymApp.');
   });
 
-  const changeMapping = (sport: string, dayId: number | null) => run(async () => {
-    await setStravaMapping(db, sport, dayId);
+  const changeMapping = (sport: string, exerciseId: number | null) => run(async () => {
+    await setStravaMapping(db, sport, exerciseId);
     setSelectedSport(null);
-    if (session && dayId != null) {
+    if (session && exerciseId != null) {
       const count = await syncStrava(db);
       if (count > 0) showAlert('Actividades añadidas', `${count} actividades pendientes se han guardado.`);
     }
+  });
+
+  const addExercise = () => run(async () => {
+    const name = newExerciseName.trim();
+    if (!name) throw new Error('Escribe el nombre del ejercicio de cardio.');
+    const existing = await db.getFirstAsync<{ id: number }>(
+      'SELECT id FROM exercises WHERE name = ? COLLATE NOCASE', [name]
+    );
+    if (existing) throw new Error('Ya existe un ejercicio con ese nombre.');
+    await createExercise(db, name, 'cardio');
+    setNewExerciseName('');
   });
 
   const mappedTypes = mappings.map((item) => item.sport_type);
@@ -138,7 +157,7 @@ export default function StravaSettingsScreen() {
         <Text style={styles.status}>{session ? `Conectado · cuenta ${session.athleteId}` : 'Sin conectar'}</Text>
         {session ? (
           <>
-            <Text style={styles.hint}>{pending} actividades pendientes de asignar a un día de cardio.</Text>
+            <Text style={styles.hint}>{pending} actividades pendientes de asignar a un ejercicio de cardio.</Text>
             <Button title="Sincronizar ahora" loading={busy} onPress={sync} />
             <Button title="Desconectar Strava" variant="surface" disabled={busy} onPress={disconnect} />
           </>
@@ -170,19 +189,21 @@ export default function StravaSettingsScreen() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.title}>Actividades y días</Text>
-        <Text style={styles.hint}>Asigna cada tipo de Strava a un día de cardio. Las actividades sin asignar esperan hasta que elijas uno.</Text>
-        {days.length === 0 ? (
-          <Button title="Crear un día de cardio" variant="surface" onPress={() => router.push('/day-form')} />
-        ) : null}
+        <Text style={styles.title}>Actividades y ejercicios</Text>
+        <Text style={styles.hint}>Asigna cada tipo de Strava a un ejercicio de cardio. Al importar una actividad, GymApp crea un día con el nombre del ejercicio. Las actividades sin asignar esperan.</Text>
+        <TextInput style={styles.input} value={newExerciseName} onChangeText={setNewExerciseName}
+          placeholder="Nuevo ejercicio: Correr, Montaña..." placeholderTextColor={GymTheme.textFaint} />
+        <Button title="Crear ejercicio de cardio" variant="surface" disabled={busy} onPress={addExercise} />
         {sports.map((sport) => {
-          const dayId = mappings.find((item) => item.sport_type === sport)?.day_id;
-          const day = days.find((item) => item.id === dayId);
+          const exerciseId = mappings.find((item) => item.sport_type === sport)?.exercise_id;
+          const exercise = exercises.find((item) => item.id === exerciseId);
           return (
             <View key={sport} style={styles.mapping}>
               <Pressable style={styles.mappingHead} onPress={() => setSelectedSport(selectedSport === sport ? null : sport)}>
-                <Text style={styles.mappingName}>{sport}</Text>
-                <Text style={styles.mappingDay}>{day?.name ?? 'Sin asignar'}</Text>
+                <Text style={styles.mappingName}>
+                  {SPORT_LABELS[sport] ? `${SPORT_LABELS[sport]} · ${sport}` : sport}
+                </Text>
+                <Text style={styles.mappingDay}>{exercise?.name ?? 'Sin asignar'}</Text>
                 <MaterialCommunityIcons name={selectedSport === sport ? 'chevron-up' : 'chevron-down'}
                   size={20} color={GymTheme.textMuted} />
               </Pressable>
@@ -191,7 +212,7 @@ export default function StravaSettingsScreen() {
                   <Pressable onPress={() => changeMapping(sport, null)} disabled={busy}>
                     <Text style={styles.dayOption}>Sin asignar</Text>
                   </Pressable>
-                  {days.map((item) => (
+                  {exercises.map((item) => (
                     <Pressable key={item.id} onPress={() => changeMapping(sport, item.id)} disabled={busy}>
                       <Text style={styles.dayOption}>{item.name}</Text>
                     </Pressable>

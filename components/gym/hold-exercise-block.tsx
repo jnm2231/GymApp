@@ -11,8 +11,9 @@ import {
   startHoldSet,
   updateSetDuration,
 } from '@/db/sessions';
-import type { SessionExerciseWithSets } from '@/db/types';
-import { formatClock, formatHM, formatRest } from '@/lib/format';
+import type { ExerciseSet, SessionExerciseWithSets, SetSide } from '@/db/types';
+import { groupSetsByIndex } from '@/lib/calc';
+import { formatClock, formatCollapsedHoldSets, formatHM, formatRest } from '@/lib/format';
 import {
   cancelTimerNotification,
   cancelWorkoutReminder,
@@ -29,6 +30,7 @@ interface Props {
   onPostpone: () => void;
   onChanged: () => Promise<void>;
   onOpenHistory: (exerciseId: number) => void;
+  onEditExercise: (exerciseId: number, sessionExerciseId: number) => void;
 }
 
 export function HoldExerciseBlock({
@@ -40,10 +42,12 @@ export function HoldExerciseBlock({
   onPostpone,
   onChanged,
   onOpenHistory,
+  onEditExercise,
 }: Props) {
   const db = useSQLiteContext();
   const done = block.status === 'done';
   const running = block.timer_started_ts != null;
+  const isUnilateral = block.is_unilateral === 1;
   const [now, setNow] = useState(() => Date.now());
   const [editing, setEditing] = useState(false);
   const [editedDurations, setEditedDurations] = useState<Record<number, string>>({});
@@ -54,17 +58,35 @@ export function HoldExerciseBlock({
     return () => clearInterval(timer);
   }, [block.sets.length, done, isCurrent, running]);
 
-  const startSet = async () => {
-    const startedAt = await startHoldSet(db, block.id);
+  const groups = groupSetsByIndex(block.sets);
+  const lastGroup = groups[groups.length - 1];
+  const inProgressGroup =
+    isUnilateral && lastGroup && lastGroup.items.length === 1 ? lastGroup : null;
+  const completedGroups = isUnilateral
+    ? inProgressGroup
+      ? groups.slice(0, -1)
+      : groups
+    : [];
+  const currentSetIndex = inProgressGroup ? inProgressGroup.setIndex : (lastGroup?.setIndex ?? 0) + 1;
+
+  const startSet = async (side: SetSide | null = null) => {
+    const startedAt = await startHoldSet(db, block.id, side);
     await cancelWorkoutReminder(sessionId);
-    await showTimerNotification(db, sessionId, 'hold', block.exercise_name, startedAt);
+    const sideSuffix = side ? ` (${side === 'left' ? 'Izq' : 'Der'})` : '';
+    await showTimerNotification(
+      db,
+      sessionId,
+      'hold',
+      `${block.exercise_name}${sideSuffix}`,
+      startedAt
+    );
     await onChanged();
   };
 
   const stopSet = async () => {
     const createdSet = await finishHoldSet(db, block.id);
     await cancelTimerNotification(sessionId);
-    if (createdSet) {
+    if (createdSet && (!isUnilateral || createdSet.side_order === 2)) {
       await showTimerNotification(db, sessionId, 'rest', block.exercise_name, createdSet.ts);
     }
     await scheduleWorkoutReminder(db, sessionId);
@@ -82,7 +104,7 @@ export function HoldExerciseBlock({
     setEditing(false);
     onFocus();
     const lastSet = block.sets[block.sets.length - 1];
-    if (lastSet) {
+    if (lastSet && (!isUnilateral || inProgressGroup == null)) {
       await showTimerNotification(db, sessionId, 'rest', block.exercise_name, lastSet.ts);
     }
     await onChanged();
@@ -118,7 +140,56 @@ export function HoldExerciseBlock({
   const elapsedSeconds = running
     ? Math.max(0, Math.floor((now - block.timer_started_ts!) / 1000))
     : 0;
-  const summary = block.sets.map((set) => formatClock(set.duration_seconds ?? 0)).join(' · ');
+  const summary =
+    block.sets.length > 0 ? formatCollapsedHoldSets(block.sets, isUnilateral) : '';
+
+  const renderSideDuration = (set: ExerciseSet) => (
+    <View style={styles.uniSideRow}>
+      <View style={styles.sideBadge}>
+        <Text style={styles.sideBadgeText}>{set.side === 'left' ? 'Izq' : 'Der'}</Text>
+      </View>
+      {editing ? (
+        <View style={styles.editDuration}>
+          <TextInput
+            style={styles.durationInput}
+            keyboardType="number-pad"
+            value={editedDurations[set.id] ?? String(set.duration_seconds ?? 0)}
+            onChangeText={(value) =>
+              setEditedDurations((current) => ({ ...current, [set.id]: value }))
+            }
+          />
+          <Text style={styles.unit}>seg</Text>
+        </View>
+      ) : (
+        <Text style={styles.duration}>{formatClock(set.duration_seconds ?? 0)}</Text>
+      )}
+    </View>
+  );
+
+  const renderUnilateralGroup = (setIndex: number, items: ExerciseSet[]) => {
+    const ordered = [...items].sort((a, b) => (a.side_order ?? 0) - (b.side_order ?? 0));
+    const first = ordered[0];
+    const second = ordered[1];
+    return (
+      <View key={setIndex} style={styles.uniSetBox}>
+        <View style={styles.uniSetHeader}>
+          <Text style={styles.uniSetTitle}>Serie {setIndex}</Text>
+          {first?.rest_seconds != null ? (
+            <View style={styles.restPill}>
+              <Text style={styles.restPillText}>{formatRest(first.rest_seconds)}</Text>
+            </View>
+          ) : null}
+        </View>
+        {first ? renderSideDuration(first) : null}
+        {second?.side_rest_seconds != null ? (
+          <Text style={styles.sideRestText}>
+            Entre lados · {formatRest(second.side_rest_seconds)}
+          </Text>
+        ) : null}
+        {second ? renderSideDuration(second) : null}
+      </View>
+    );
+  };
 
   if (!isCurrent && !done) {
     return (
@@ -126,7 +197,10 @@ export function HoldExerciseBlock({
         <View style={styles.header}>
           <MaterialCommunityIcons name="timer-outline" size={22} color={GymTheme.hold} />
           <View style={{ flex: 1 }}>
-            <Text style={styles.name}>{block.exercise_name}</Text>
+            <View style={styles.nameRow}>
+              <Text style={styles.name}>{block.exercise_name}</Text>
+              {isUnilateral ? <Text style={styles.uniTag}>I/D</Text> : null}
+            </View>
             <Text style={styles.sub}>{summary || 'Aguante · Sin empezar'}</Text>
           </View>
           {canFocus ? (
@@ -140,12 +214,21 @@ export function HoldExerciseBlock({
     );
   }
 
+  const displayedCompletedGroups = isUnilateral
+    ? done && inProgressGroup
+      ? groups
+      : completedGroups
+    : [];
+
   return (
     <View style={[styles.card, isCurrent && !done && styles.current]}>
       <View style={styles.header}>
         <MaterialCommunityIcons name="timer-outline" size={23} color={GymTheme.hold} />
         <View style={{ flex: 1 }}>
-          <Text style={styles.name}>{block.exercise_name}</Text>
+          <View style={styles.nameRow}>
+            <Text style={styles.name}>{block.exercise_name}</Text>
+            {isUnilateral ? <Text style={styles.uniTag}>I/D</Text> : null}
+          </View>
           <Text style={styles.sub}>
             Aguante
             {block.start_ts ? ` · Inicio ${formatHM(block.start_ts)}` : ''}
@@ -160,71 +243,186 @@ export function HoldExerciseBlock({
         </View>
       ) : (
         <View style={styles.sets}>
-          {block.sets.map((set) => (
-            <View key={set.id} style={styles.setRow}>
-              <Text style={styles.setIndex}>Serie {set.set_index}</Text>
-              {editing ? (
-                <View style={styles.editDuration}>
-                  <TextInput
-                    style={styles.durationInput}
-                    keyboardType="number-pad"
-                    value={editedDurations[set.id] ?? String(set.duration_seconds ?? 0)}
-                    onChangeText={(value) =>
-                      setEditedDurations((current) => ({ ...current, [set.id]: value }))
-                    }
-                  />
-                  <Text style={styles.unit}>seg</Text>
-                </View>
-              ) : (
-                <Text style={styles.duration}>{formatClock(set.duration_seconds ?? 0)}</Text>
-              )}
-              {set.rest_seconds == null ? (
-                <Text style={styles.restEmpty}>inicio</Text>
-              ) : (
-                <View style={styles.restPill}>
-                  <Text style={styles.restPillText}>{formatRest(set.rest_seconds)}</Text>
-                </View>
-              )}
-            </View>
-          ))}
+          {isUnilateral ? (
+            <>
+              {displayedCompletedGroups.map((g) => renderUnilateralGroup(g.setIndex, g.items))}
 
-          {isCurrent && !done ? (
-            <View style={[styles.setRow, styles.nextSet]}>
-              <Text style={styles.setIndex}>Serie {block.sets.length + 1}</Text>
-              {running ? (
-                <>
-                  <Text style={styles.liveClock}>{formatClock(elapsedSeconds)}</Text>
-                  <Pressable style={styles.stopButton} onPress={stopSet}>
-                    <MaterialCommunityIcons name="stop" size={16} color={GymTheme.white} />
-                    <Text style={styles.stopText}>Terminar</Text>
-                  </Pressable>
-                </>
-              ) : (
-                <Pressable style={styles.primaryButton} onPress={startSet}>
-                  <MaterialCommunityIcons name="play" size={16} color="#160B24" />
-                  <Text style={styles.primaryText}>Empezar</Text>
-                </Pressable>
-              )}
-            </View>
-          ) : null}
+              {isCurrent && !done && block.sets.length > 0 && !running && inProgressGroup == null ? (
+                <View style={styles.restClock}>
+                  <MaterialCommunityIcons name="timer-sand-complete" size={15} color={GymTheme.hold} />
+                  <Text style={styles.restClockText}>
+                    {formatClock(Math.floor((now - block.sets[block.sets.length - 1].ts) / 1000))}
+                  </Text>
+                  <Text style={styles.restClockLabel}>de descanso</Text>
+                </View>
+              ) : null}
 
-          {isCurrent && !done && block.sets.length > 0 && !running ? (
-            <View style={styles.restClock}>
-              <MaterialCommunityIcons name="timer-sand-complete" size={15} color={GymTheme.hold} />
-              <Text style={styles.restClockText}>
-                {formatClock(Math.floor((now - block.sets[block.sets.length - 1].ts) / 1000))}
-              </Text>
-              <Text style={styles.restClockLabel}>de descanso</Text>
-            </View>
-          ) : null}
+              {isCurrent && !done ? (
+                <View style={styles.uniSetBox}>
+                  <View style={styles.uniSetHeader}>
+                    <Text style={styles.uniSetTitle}>Serie {currentSetIndex}</Text>
+                    {inProgressGroup?.items[0]?.rest_seconds != null ? (
+                      <View style={styles.restPill}>
+                        <Text style={styles.restPillText}>
+                          {formatRest(inProgressGroup.items[0].rest_seconds)}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {inProgressGroup ? (
+                    (() => {
+                      const confirmed = inProgressGroup.items[0];
+                      const remainingSide: SetSide = confirmed.side === 'left' ? 'right' : 'left';
+                      const sideRestText =
+                        running && block.timer_started_ts != null
+                          ? `Entre lados · ${formatRest(
+                              Math.max(0, Math.round((block.timer_started_ts - confirmed.ts) / 1000))
+                            )}`
+                          : `Entre lados · ${formatClock(
+                              Math.max(0, Math.floor((now - confirmed.ts) / 1000))
+                            )}`;
+
+                      return (
+                        <>
+                          {renderSideDuration(confirmed)}
+                          <Text style={styles.sideRestText}>{sideRestText}</Text>
+                          <View style={styles.uniSideRow}>
+                            <View style={styles.sideBadge}>
+                              <Text style={styles.sideBadgeText}>
+                                {remainingSide === 'left' ? 'Izq' : 'Der'}
+                              </Text>
+                            </View>
+                            {running ? (
+                              <>
+                                <Text style={styles.liveClock}>{formatClock(elapsedSeconds)}</Text>
+                                <Pressable style={styles.stopButton} onPress={stopSet}>
+                                  <MaterialCommunityIcons name="stop" size={16} color={GymTheme.white} />
+                                  <Text style={styles.stopText}>Terminar</Text>
+                                </Pressable>
+                              </>
+                            ) : (
+                              <Pressable
+                                style={styles.primaryButton}
+                                onPress={() => startSet(remainingSide)}>
+                                <MaterialCommunityIcons name="play" size={16} color="#160B24" />
+                                <Text style={styles.primaryText}>Empezar</Text>
+                              </Pressable>
+                            )}
+                          </View>
+                        </>
+                      );
+                    })()
+                  ) : (
+                    (['left', 'right'] as SetSide[]).map((side) => {
+                      const isThisSideRunning = running && (block.timer_side ?? 'left') === side;
+                      return (
+                        <View key={side} style={styles.uniSideRow}>
+                          <View style={styles.sideBadge}>
+                            <Text style={styles.sideBadgeText}>
+                              {side === 'left' ? 'Izq' : 'Der'}
+                            </Text>
+                          </View>
+                          {isThisSideRunning ? (
+                            <>
+                              <Text style={styles.liveClock}>{formatClock(elapsedSeconds)}</Text>
+                              <Pressable style={styles.stopButton} onPress={stopSet}>
+                                <MaterialCommunityIcons name="stop" size={16} color={GymTheme.white} />
+                                <Text style={styles.stopText}>Terminar</Text>
+                              </Pressable>
+                            </>
+                          ) : (
+                            <Pressable
+                              style={[styles.primaryButton, running && styles.disabled]}
+                              disabled={running}
+                              onPress={() => startSet(side)}>
+                              <MaterialCommunityIcons name="play" size={16} color="#160B24" />
+                              <Text style={styles.primaryText}>Empezar</Text>
+                            </Pressable>
+                          )}
+                        </View>
+                      );
+                    })
+                  )}
+                </View>
+              ) : null}
+            </>
+          ) : (
+            <>
+              {block.sets.map((set) => (
+                <View key={set.id} style={styles.setRow}>
+                  <Text style={styles.setIndex}>Serie {set.set_index}</Text>
+                  {editing ? (
+                    <View style={styles.editDuration}>
+                      <TextInput
+                        style={styles.durationInput}
+                        keyboardType="number-pad"
+                        value={editedDurations[set.id] ?? String(set.duration_seconds ?? 0)}
+                        onChangeText={(value) =>
+                          setEditedDurations((current) => ({ ...current, [set.id]: value }))
+                        }
+                      />
+                      <Text style={styles.unit}>seg</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.duration}>{formatClock(set.duration_seconds ?? 0)}</Text>
+                  )}
+                  {set.rest_seconds == null ? (
+                    <Text style={styles.restEmpty}>inicio</Text>
+                  ) : (
+                    <View style={styles.restPill}>
+                      <Text style={styles.restPillText}>{formatRest(set.rest_seconds)}</Text>
+                    </View>
+                  )}
+                </View>
+              ))}
+
+              {isCurrent && !done ? (
+                <View style={[styles.setRow, styles.nextSet]}>
+                  <Text style={styles.setIndex}>Serie {block.sets.length + 1}</Text>
+                  {running ? (
+                    <>
+                      <Text style={styles.liveClock}>{formatClock(elapsedSeconds)}</Text>
+                      <Pressable style={styles.stopButton} onPress={stopSet}>
+                        <MaterialCommunityIcons name="stop" size={16} color={GymTheme.white} />
+                        <Text style={styles.stopText}>Terminar</Text>
+                      </Pressable>
+                    </>
+                  ) : (
+                    <Pressable style={styles.primaryButton} onPress={() => startSet(null)}>
+                      <MaterialCommunityIcons name="play" size={16} color="#160B24" />
+                      <Text style={styles.primaryText}>Empezar</Text>
+                    </Pressable>
+                  )}
+                </View>
+              ) : null}
+
+              {isCurrent && !done && block.sets.length > 0 && !running ? (
+                <View style={styles.restClock}>
+                  <MaterialCommunityIcons name="timer-sand-complete" size={15} color={GymTheme.hold} />
+                  <Text style={styles.restClockText}>
+                    {formatClock(Math.floor((now - block.sets[block.sets.length - 1].ts) / 1000))}
+                  </Text>
+                  <Text style={styles.restClockLabel}>de descanso</Text>
+                </View>
+              ) : null}
+            </>
+          )}
         </View>
       )}
 
       <View style={styles.actions}>
         {block.exercise_id != null ? (
-          <Pressable style={styles.iconButton} onPress={() => onOpenHistory(block.exercise_id!)}>
-            <MaterialCommunityIcons name="chart-line" size={20} color={GymTheme.textMuted} />
-          </Pressable>
+          <>
+            <Pressable style={styles.iconButton} onPress={() => onOpenHistory(block.exercise_id!)}>
+              <MaterialCommunityIcons name="chart-line" size={20} color={GymTheme.textMuted} />
+            </Pressable>
+            <Pressable
+              style={styles.iconButton}
+              onPress={() => onEditExercise(block.exercise_id!, block.id)}>
+              <MaterialCommunityIcons name="tune" size={20} color={GymTheme.textMuted} />
+            </Pressable>
+          </>
         ) : null}
         <View style={{ flex: 1 }} />
         {done ? (
@@ -280,10 +478,52 @@ const styles = StyleSheet.create({
   current: { borderColor: GymTheme.hold, borderWidth: 2 },
   waiting: { opacity: 0.5 },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
   name: { color: GymTheme.text, fontSize: 18, fontWeight: '800' },
+  uniTag: {
+    color: GymTheme.hold,
+    fontSize: 10,
+    fontWeight: '800',
+    backgroundColor: GymTheme.holdDim,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: Radius.sm,
+  },
   sub: { color: GymTheme.textMuted, fontSize: 12, marginTop: 2 },
   sets: { gap: Spacing.sm },
   setRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  uniSetBox: {
+    backgroundColor: GymTheme.surfaceAlt,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: GymTheme.border,
+    padding: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  uniSetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  uniSetTitle: { color: GymTheme.textMuted, fontSize: 13, fontWeight: '700' },
+  uniSideRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: 2 },
+  sideBadge: {
+    backgroundColor: GymTheme.surfaceElevated,
+    borderRadius: Radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    minWidth: 38,
+    alignItems: 'center',
+  },
+  sideBadgeText: { color: GymTheme.textMuted, fontSize: 12, fontWeight: '800' },
+  sideRestText: {
+    color: GymTheme.textMuted,
+    fontSize: 12,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+    paddingLeft: 46,
+  },
   nextSet: { borderTopWidth: 1, borderTopColor: GymTheme.border, paddingTop: Spacing.md },
   setIndex: { color: GymTheme.textMuted, fontSize: 13, fontWeight: '700', width: 58 },
   duration: { color: GymTheme.hold, fontSize: 17, fontWeight: '900', width: 64 },

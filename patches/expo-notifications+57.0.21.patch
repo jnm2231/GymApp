@@ -8,8 +8,8 @@ index 610d303..8d779f6 100644
      builder.setStyle(NotificationCompat.BigTextStyle().bigText(content.text))
 +    // GymApp: the standard chronometer only occupies the system timestamp slot.
 +    // Render an actual Chronometer in the content as well, including when collapsed.
-+    val timerStartedAt = content.body?.optLong("_gymTimerStartedAt", 0) ?: 0
-+    if (content.body?.optString("type") == "workout-live-timer" && timerStartedAt > 0) {
++    val timerStartedAt = content.body?.optDouble("_gymTimerStartedAt", 0.0)?.toLong() ?: 0L
++    if (content.body?.optString("type") == "workout-live-timer" && timerStartedAt > 0L) {
 +      GymTimerNotification.apply(context, builder, content.title, content.text, timerStartedAt)
 +    }
 diff --git a/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/presentation/builders/GymTimerNotification.kt b/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/presentation/builders/GymTimerNotification.kt
@@ -17,7 +17,7 @@ new file mode 100644
 index 0000000..0a82b6c
 --- /dev/null
 +++ b/node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/presentation/builders/GymTimerNotification.kt
-@@ -0,0 +1,39 @@
+@@ -0,0 +1,41 @@
 +package expo.modules.notifications.notifications.presentation.builders
 +
 +import android.content.Context
@@ -51,6 +51,8 @@ index 0000000..0a82b6c
 +    builder.setUsesChronometer(true)
 +    builder.setChronometerCountDown(false)
 +    builder.setOnlyAlertOnce(true)
++    builder.setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
++    builder.setCategory(NotificationCompat.CATEGORY_STOPWATCH)
 +    builder.setStyle(NotificationCompat.DecoratedCustomViewStyle())
 +    builder.setCustomContentView(views)
 +    builder.setCustomBigContentView(views)

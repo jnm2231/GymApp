@@ -60,6 +60,10 @@ export default function RootLayout() {
                       name="day-form"
                       options={{ presentation: 'modal', title: 'Día de entrenamiento' }}
                     />
+                    <Stack.Screen
+                      name="exercise-form"
+                      options={{ presentation: 'modal', title: 'Ejercicio' }}
+                    />
                     <Stack.Screen name="exercise/[id]" options={{ title: 'Histórico' }} />
                     <Stack.Screen name="day-detail/[date]" options={{ title: 'Detalle del día' }} />
                     <Stack.Screen name="patch-notes" options={{ title: 'Historial de versiones' }} />
